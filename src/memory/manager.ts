@@ -103,15 +103,16 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
   static async get(params: {
     cfg: OpenClawConfig;
     agentId: string;
+    tenantId?: string;
     purpose?: "default" | "status";
   }): Promise<MemoryIndexManager | null> {
-    const { cfg, agentId } = params;
+    const { cfg, agentId, tenantId } = params;
     const settings = resolveMemorySearchConfig(cfg, agentId);
     if (!settings) {
       return null;
     }
-    const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
-    const key = `${agentId}:${workspaceDir}:${JSON.stringify(settings)}`;
+    const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId, tenantId);
+    const key = `${tenantId ?? agentId}:${workspaceDir}:${JSON.stringify(settings)}`;
     const existing = INDEX_CACHE.get(key);
     if (existing) {
       return existing;

@@ -60,6 +60,7 @@ export type OpenClawPluginToolContext = {
   workspaceDir?: string;
   agentDir?: string;
   agentId?: string;
+  tenantId?: string;
   sessionKey?: string;
   messageChannel?: string;
   agentAccountId?: string;

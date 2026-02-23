@@ -65,6 +65,8 @@ export function createOpenClawTools(options?: {
   requesterSenderId?: string | null;
   /** Whether the requesting sender is an owner. */
   senderIsOwner?: boolean;
+  /** Tenant ID for per-tenant memory isolation. */
+  tenantId?: string;
 }): AnyAgentTool[] {
   const workspaceDir = resolveWorkspaceRoot(options?.workspaceDir);
   const imageTool = options?.agentDir?.trim()
@@ -174,6 +176,7 @@ export function createOpenClawTools(options?: {
         sessionKey: options?.agentSessionKey,
         config: options?.config,
       }),
+      tenantId: options?.tenantId,
       sessionKey: options?.agentSessionKey,
       messageChannel: options?.agentChannel,
       agentAccountId: options?.agentAccountId,

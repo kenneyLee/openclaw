@@ -42,6 +42,7 @@ type ToolsInvokeBody = {
   action?: unknown;
   args?: unknown;
   sessionKey?: unknown;
+  tenantId?: unknown;
   dryRun?: unknown;
 };
 
@@ -213,6 +214,10 @@ export async function handleToolsInvokeHttpRequest(
     getHeader(req, "x-openclaw-message-channel") ?? "",
   );
   const accountId = getHeader(req, "x-openclaw-account-id")?.trim() || undefined;
+  const tenantId =
+    typeof body.tenantId === "string" && body.tenantId.trim()
+      ? body.tenantId.trim()
+      : getHeader(req, "x-openclaw-tenant-id")?.trim() || undefined;
 
   const {
     agentId,
@@ -249,6 +254,7 @@ export async function handleToolsInvokeHttpRequest(
     agentChannel: messageChannel ?? undefined,
     agentAccountId: accountId,
     config: cfg,
+    tenantId,
     pluginToolAllowlist: collectExplicitAllowlist([
       profilePolicy,
       providerProfilePolicy,

@@ -13,10 +13,12 @@ const memoryCorePlugin = {
         const memorySearchTool = api.runtime.tools.createMemorySearchTool({
           config: ctx.config,
           agentSessionKey: ctx.sessionKey,
+          tenantId: ctx.tenantId,
         });
         const memoryGetTool = api.runtime.tools.createMemoryGetTool({
           config: ctx.config,
           agentSessionKey: ctx.sessionKey,
+          tenantId: ctx.tenantId,
         });
         if (!memorySearchTool || !memoryGetTool) {
           return null;

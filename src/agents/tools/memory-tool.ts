@@ -22,7 +22,11 @@ const MemoryGetSchema = Type.Object({
   lines: Type.Optional(Type.Number()),
 });
 
-function resolveMemoryToolContext(options: { config?: OpenClawConfig; agentSessionKey?: string }) {
+function resolveMemoryToolContext(options: {
+  config?: OpenClawConfig;
+  agentSessionKey?: string;
+  tenantId?: string;
+}) {
   const cfg = options.config;
   if (!cfg) {
     return null;
@@ -34,18 +38,19 @@ function resolveMemoryToolContext(options: { config?: OpenClawConfig; agentSessi
   if (!resolveMemorySearchConfig(cfg, agentId)) {
     return null;
   }
-  return { cfg, agentId };
+  return { cfg, agentId, tenantId: options.tenantId };
 }
 
 export function createMemorySearchTool(options: {
   config?: OpenClawConfig;
   agentSessionKey?: string;
+  tenantId?: string;
 }): AnyAgentTool | null {
   const ctx = resolveMemoryToolContext(options);
   if (!ctx) {
     return null;
   }
-  const { cfg, agentId } = ctx;
+  const { cfg, agentId, tenantId } = ctx;
   return {
     label: "Memory Search",
     name: "memory_search",
@@ -59,6 +64,7 @@ export function createMemorySearchTool(options: {
       const { manager, error } = await getMemorySearchManager({
         cfg,
         agentId,
+        tenantId,
       });
       if (!manager) {
         return jsonResult(buildMemorySearchUnavailableResult(error));
@@ -76,7 +82,7 @@ export function createMemorySearchTool(options: {
         });
         const status = manager.status();
         const decorated = decorateCitations(rawResults, includeCitations);
-        const resolved = resolveMemoryBackendConfig({ cfg, agentId });
+        const resolved = resolveMemoryBackendConfig({ cfg, agentId, tenantId });
         const results =
           status.backend === "qmd"
             ? clampResultsByInjectedChars(decorated, resolved.qmd?.limits.maxInjectedChars)
@@ -101,12 +107,13 @@ export function createMemorySearchTool(options: {
 export function createMemoryGetTool(options: {
   config?: OpenClawConfig;
   agentSessionKey?: string;
+  tenantId?: string;
 }): AnyAgentTool | null {
   const ctx = resolveMemoryToolContext(options);
   if (!ctx) {
     return null;
   }
-  const { cfg, agentId } = ctx;
+  const { cfg, agentId, tenantId } = ctx;
   return {
     label: "Memory Get",
     name: "memory_get",
@@ -120,6 +127,7 @@ export function createMemoryGetTool(options: {
       const { manager, error } = await getMemorySearchManager({
         cfg,
         agentId,
+        tenantId,
       });
       if (!manager) {
         return jsonResult({ path: relPath, text: "", disabled: true, error });

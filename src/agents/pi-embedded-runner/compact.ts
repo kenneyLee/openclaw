@@ -105,6 +105,8 @@ export type CompactEmbeddedPiSessionParams = {
   spawnedBy?: string | null;
   /** Whether the sender is an owner (required for owner-only tools). */
   senderIsOwner?: boolean;
+  /** Tenant ID for per-tenant memory isolation. */
+  tenantId?: string;
   sessionFile: string;
   workspaceDir: string;
   agentDir?: string;
@@ -387,6 +389,7 @@ export async function compactEmbeddedPiSessionDirect(
       modelId,
       modelContextWindowTokens: model.contextWindow,
       modelAuthMode: resolveModelAuthMode(model.provider, params.config),
+      tenantId: params.tenantId,
     });
     const tools = sanitizeToolsForGoogle({ tools: toolsRaw, provider });
     const allowedToolNames = collectAllowedToolNames({ tools });

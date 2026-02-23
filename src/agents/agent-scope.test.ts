@@ -280,4 +280,45 @@ describe("resolveAgentConfig", () => {
     const agentDir = resolveAgentDir({} as OpenClawConfig, "main");
     expect(agentDir).toBe(path.join(path.resolve(home), ".openclaw", "agents", "main", "agent"));
   });
+
+  it("returns per-tenant workspace when tenantId is provided", () => {
+    const stateDir = path.join(path.sep, "srv", "state");
+    vi.stubEnv("OPENCLAW_STATE_DIR", stateDir);
+
+    const workspace = resolveAgentWorkspaceDir({} as OpenClawConfig, "main", "tenant-1");
+    expect(workspace).toBe(path.join(stateDir, "workspace-tenant-1"));
+  });
+
+  it("returns different workspaces for different tenantIds", () => {
+    const stateDir = path.join(path.sep, "srv", "state");
+    vi.stubEnv("OPENCLAW_STATE_DIR", stateDir);
+
+    const ws1 = resolveAgentWorkspaceDir({} as OpenClawConfig, "main", "tenant-1");
+    const ws2 = resolveAgentWorkspaceDir({} as OpenClawConfig, "main", "tenant-2");
+    expect(ws1).not.toBe(ws2);
+    expect(ws1).toContain("workspace-tenant-1");
+    expect(ws2).toContain("workspace-tenant-2");
+  });
+
+  it("falls back to original behavior when tenantId is undefined", () => {
+    const home = path.join(path.sep, "srv", "openclaw-home");
+    vi.stubEnv("OPENCLAW_HOME", home);
+
+    const withTenant = resolveAgentWorkspaceDir({} as OpenClawConfig, "main", undefined);
+    const withoutTenant = resolveAgentWorkspaceDir({} as OpenClawConfig, "main");
+    expect(withTenant).toBe(withoutTenant);
+  });
+
+  it("tenantId takes precedence over agent workspace config", () => {
+    const stateDir = path.join(path.sep, "srv", "state");
+    vi.stubEnv("OPENCLAW_STATE_DIR", stateDir);
+
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [{ id: "main", workspace: "~/custom-workspace" }],
+      },
+    };
+    const workspace = resolveAgentWorkspaceDir(cfg, "main", "tenant-abc");
+    expect(workspace).toBe(path.join(stateDir, "workspace-tenant-abc"));
+  });
 });

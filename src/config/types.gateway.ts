@@ -327,4 +327,12 @@ export type GatewayConfig = {
    * Set to 0 to disable. Default: 5.
    */
   channelHealthCheckMinutes?: number;
+  /**
+   * State persistence backend.
+   * - "file" (default): File-based state (sessions, routing).
+   * - "database": MySQL-backed state (requires `database` config).
+   */
+  stateBackend?: "file" | "database";
+  /** MySQL connection config. Required when stateBackend is "database". */
+  database?: import("../state/db-connection.js").DbPoolConfig;
 };

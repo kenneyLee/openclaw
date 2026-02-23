@@ -53,6 +53,7 @@ export type ResolvedAgentRoute = {
     | "binding.team"
     | "binding.account"
     | "binding.channel"
+    | "database"
     | "default";
 };
 

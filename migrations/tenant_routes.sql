@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS tenant_routes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  channel VARCHAR(32) NOT NULL,
+  match_key VARCHAR(64) NOT NULL,
+  match_value VARCHAR(128) NOT NULL,
+  agent_id VARCHAR(64) NOT NULL,
+  tenant_id VARCHAR(64) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_route (channel, match_key, match_value),
+  KEY idx_tenant (tenant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -177,6 +177,7 @@
     "linkedom": "^0.18.12",
     "long": "^5.3.2",
     "markdown-it": "^14.1.1",
+    "mysql2": "^3.17.5",
     "node-edge-tts": "^1.2.10",
     "opusscript": "^0.0.8",
     "osc-progress": "^0.3.0",

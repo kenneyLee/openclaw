@@ -18,6 +18,7 @@ import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { type enqueueCommand, enqueueCommandInLane } from "../../process/command-queue.js";
 import { isCronSessionKey, isSubagentSessionKey } from "../../routing/session-key.js";
 import { resolveSignalReactionLevel } from "../../signal/reaction-level.js";
+import type { StateProvider } from "../../state/types.js";
 import { resolveTelegramInlineButtonsScope } from "../../telegram/inline-buttons.js";
 import { resolveTelegramReactionLevel } from "../../telegram/reaction-level.js";
 import { buildTtsSystemPromptHint } from "../../tts/tts.js";
@@ -108,6 +109,7 @@ export type CompactEmbeddedPiSessionParams = {
   workspaceDir: string;
   agentDir?: string;
   config?: OpenClawConfig;
+  stateProvider?: StateProvider;
   skillsSnapshot?: SkillSnapshot;
   provider?: string;
   model?: string;
@@ -361,6 +363,7 @@ export async function compactEmbeddedPiSessionDirect(
       sessionKey: params.sessionKey,
       sessionId: params.sessionId,
       warn: makeBootstrapWarn({ sessionLabel, warn: (message) => log.warn(message) }),
+      stateProvider: params.stateProvider,
     });
     const runAbortController = new AbortController();
     const toolsRaw = createOpenClawCodingTools({

@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../config/config.js";
+import type { StateProvider } from "../state/types.js";
 import { applyBootstrapHookOverrides } from "./bootstrap-hooks.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
 import {
@@ -47,12 +48,16 @@ export async function resolveBootstrapFilesForRun(params: {
   sessionId?: string;
   agentId?: string;
   warn?: (message: string) => void;
+  stateProvider?: StateProvider;
 }): Promise<WorkspaceBootstrapFile[]> {
   const sessionKey = params.sessionKey ?? params.sessionId;
-  const bootstrapFiles = filterBootstrapFilesForSession(
-    await loadWorkspaceBootstrapFiles(params.workspaceDir),
-    sessionKey,
-  );
+  const rawFiles = params.stateProvider?.bootstrap
+    ? await params.stateProvider.bootstrap.loadBootstrapFiles({
+        workspaceDir: params.workspaceDir,
+        agentId: params.agentId,
+      })
+    : await loadWorkspaceBootstrapFiles(params.workspaceDir);
+  const bootstrapFiles = filterBootstrapFilesForSession(rawFiles, sessionKey);
 
   const updated = await applyBootstrapHookOverrides({
     files: bootstrapFiles,
@@ -72,6 +77,7 @@ export async function resolveBootstrapContextForRun(params: {
   sessionId?: string;
   agentId?: string;
   warn?: (message: string) => void;
+  stateProvider?: StateProvider;
 }): Promise<{
   bootstrapFiles: WorkspaceBootstrapFile[];
   contextFiles: EmbeddedContextFile[];

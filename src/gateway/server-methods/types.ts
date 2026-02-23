@@ -3,6 +3,7 @@ import type { createDefaultDeps } from "../../cli/deps.js";
 import type { HealthSummary } from "../../commands/health.js";
 import type { CronService } from "../../cron/service.js";
 import type { createSubsystemLogger } from "../../logging/subsystem.js";
+import type { StateProvider } from "../../state/types.js";
 import type { WizardSession } from "../../wizard/session.js";
 import type { ChatAbortControllerEntry } from "../chat-abort.js";
 import type { ExecApprovalManager } from "../exec-approval-manager.js";
@@ -29,6 +30,7 @@ export type RespondFn = (
 
 export type GatewayRequestContext = {
   deps: ReturnType<typeof createDefaultDeps>;
+  stateProvider?: StateProvider;
   cron: CronService;
   cronStorePath: string;
   execApprovalManager?: ExecApprovalManager;

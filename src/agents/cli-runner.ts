@@ -6,6 +6,7 @@ import { shouldLogVerbose } from "../globals.js";
 import { isTruthyEnvValue } from "../infra/env.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getProcessSupervisor } from "../process/supervisor/index.js";
+import type { StateProvider } from "../state/types.js";
 import { resolveSessionAgentIds } from "./agent-scope.js";
 import { makeBootstrapWarn, resolveBootstrapContextForRun } from "./bootstrap-files.js";
 import { resolveCliBackendConfig } from "./cli-backends.js";
@@ -39,6 +40,7 @@ export async function runCliAgent(params: {
   sessionFile: string;
   workspaceDir: string;
   config?: OpenClawConfig;
+  stateProvider?: StateProvider;
   prompt: string;
   provider: string;
   model?: string;
@@ -92,6 +94,7 @@ export async function runCliAgent(params: {
     sessionKey: params.sessionKey,
     sessionId: params.sessionId,
     warn: makeBootstrapWarn({ sessionLabel, warn: (message) => log.warn(message) }),
+    stateProvider: params.stateProvider,
   });
   const { defaultAgentId, sessionAgentId } = resolveSessionAgentIds({
     sessionKey: params.sessionKey,

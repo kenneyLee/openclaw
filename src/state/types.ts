@@ -42,6 +42,18 @@ export interface ApiKeyProvider {
   resolveApiKey(rawKey: string): Promise<{ tenantId: string; scopes: string[] | null } | null>;
 }
 
+export type WebhookConfig = {
+  webhookId: string;
+  tenantId: string;
+  callbackUrl: string;
+  signingSecret: string;
+  agentId: string;
+};
+
+export interface WebhookProvider {
+  resolveWebhook(tenantId: string): Promise<WebhookConfig | null>;
+}
+
 /**
  * Composite StateProvider — all sub-providers are optional,
  * allowing incremental adoption. Missing = use existing code path.
@@ -52,4 +64,5 @@ export interface StateProvider {
   readonly sessions?: SessionStoreProvider;
   readonly routing?: RouteProvider;
   readonly apiKeys?: ApiKeyProvider;
+  readonly webhooks?: WebhookProvider;
 }

@@ -63,6 +63,7 @@ import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
 import { GATEWAY_CLIENT_MODES, normalizeGatewayClientMode } from "./protocol/client-info.js";
 import type { GatewayWsClient } from "./server/ws-types.js";
 import { handleToolsInvokeHttpRequest } from "./tools-invoke-http.js";
+import { handleAdminWebhooksHttpRequest, handleWebhookInboundHttpRequest } from "./webhook-http.js";
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 
@@ -513,6 +514,28 @@ export function createGatewayHttpServer(opts: {
       if (openResponsesEnabled) {
         if (
           await handleAdminTenantsHttpRequest(req, res, {
+            auth: resolvedAuth,
+            trustedProxies,
+            allowRealIpFallback,
+            rateLimiter,
+            stateProvider,
+          })
+        ) {
+          return;
+        }
+        if (
+          await handleAdminWebhooksHttpRequest(req, res, {
+            auth: resolvedAuth,
+            trustedProxies,
+            allowRealIpFallback,
+            rateLimiter,
+            stateProvider,
+          })
+        ) {
+          return;
+        }
+        if (
+          await handleWebhookInboundHttpRequest(req, res, {
             auth: resolvedAuth,
             trustedProxies,
             allowRealIpFallback,

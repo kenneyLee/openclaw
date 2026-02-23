@@ -20,6 +20,7 @@ import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { safeEqualSecret } from "../security/secret-equal.js";
 import { handleSlackHttpRequest } from "../slack/http/index.js";
 import type { StateProvider } from "../state/types.js";
+import { handleAdminRoutesHttpRequest } from "./admin-routes-http.js";
 import { handleAdminTenantsHttpRequest } from "./admin-tenants-http.js";
 import {
   AUTH_RATE_LIMIT_SCOPE_HOOK_AUTH,
@@ -34,6 +35,7 @@ import {
   type ResolvedGatewayAuth,
 } from "./auth.js";
 import { CANVAS_CAPABILITY_TTL_MS, normalizeCanvasScopedUrl } from "./canvas-capability.js";
+import { handleChannelInboundHttpRequest } from "./channel-inbound-http.js";
 import {
   handleControlUiAvatarRequest,
   handleControlUiHttpRequest,
@@ -536,6 +538,28 @@ export function createGatewayHttpServer(opts: {
         }
         if (
           await handleWebhookInboundHttpRequest(req, res, {
+            auth: resolvedAuth,
+            trustedProxies,
+            allowRealIpFallback,
+            rateLimiter,
+            stateProvider,
+          })
+        ) {
+          return;
+        }
+        if (
+          await handleAdminRoutesHttpRequest(req, res, {
+            auth: resolvedAuth,
+            trustedProxies,
+            allowRealIpFallback,
+            rateLimiter,
+            stateProvider,
+          })
+        ) {
+          return;
+        }
+        if (
+          await handleChannelInboundHttpRequest(req, res, {
             auth: resolvedAuth,
             trustedProxies,
             allowRealIpFallback,

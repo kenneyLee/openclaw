@@ -1,9 +1,11 @@
 import { loadExtraBootstrapFiles, loadWorkspaceBootstrapFiles } from "../agents/workspace.js";
 import { FileRouteProvider } from "./file-route-provider.js";
+import { FileSessionStoreProvider } from "./file-session-store-provider.js";
 import type {
   BootstrapFileProvider,
   BootstrapLoadContext,
   RouteProvider,
+  SessionStoreProvider,
   StateProvider,
 } from "./types.js";
 
@@ -27,10 +29,12 @@ export class FileStateProvider implements StateProvider {
   readonly id = "file";
   readonly bootstrap: BootstrapFileProvider;
   readonly routing: RouteProvider;
+  readonly sessions: SessionStoreProvider;
 
   constructor() {
     this.bootstrap = new FileBootstrapProvider();
     this.routing = new FileRouteProvider();
+    this.sessions = new FileSessionStoreProvider();
   }
 }
 

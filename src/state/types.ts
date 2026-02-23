@@ -21,7 +21,10 @@ export interface BootstrapFileProvider {
 }
 
 export interface SessionStoreProvider {
-  loadSessionStore(storePath: string, opts?: { skipCache?: boolean }): Record<string, SessionEntry>;
+  loadSessionStore(
+    storePath: string,
+    opts?: { skipCache?: boolean },
+  ): Record<string, SessionEntry> | Promise<Record<string, SessionEntry>>;
   saveSessionStore(storePath: string, store: Record<string, SessionEntry>): Promise<void>;
   updateSessionStore<T>(
     storePath: string,

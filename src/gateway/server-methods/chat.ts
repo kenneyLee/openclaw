@@ -828,6 +828,7 @@ export const chatHandlers: GatewayRequestHandlers = {
         SenderName: clientInfo?.displayName,
         SenderUsername: clientInfo?.displayName,
         GatewayClientScopes: client?.connect?.scopes,
+        TenantId: client?.tenantId,
       };
 
       const agentId = resolveSessionAgentId({

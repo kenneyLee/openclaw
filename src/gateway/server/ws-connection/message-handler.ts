@@ -22,6 +22,7 @@ import { loadVoiceWakeConfig } from "../../../infra/voicewake.js";
 import { rawDataToString } from "../../../infra/ws.js";
 import type { createSubsystemLogger } from "../../../logging/subsystem.js";
 import { roleScopesAllow } from "../../../shared/operator-scope-compat.js";
+import type { StateProvider } from "../../../state/types.js";
 import { isGatewayCliClient, isWebchatClient } from "../../../utils/message-channel.js";
 import { resolveRuntimeServiceVersion } from "../../../version.js";
 import type { AuthRateLimiter } from "../../auth-rate-limit.js";
@@ -98,6 +99,7 @@ export function attachGatewayWsMessageHandler(params: {
   resolvedAuth: ResolvedGatewayAuth;
   /** Optional rate limiter for auth brute-force protection. */
   rateLimiter?: AuthRateLimiter;
+  stateProvider?: StateProvider;
   gatewayMethods: string[];
   events: string[];
   extraHandlers: GatewayRequestHandlers;
@@ -129,6 +131,7 @@ export function attachGatewayWsMessageHandler(params: {
     connectNonce,
     resolvedAuth,
     rateLimiter,
+    stateProvider,
     gatewayMethods,
     events,
     extraHandlers,
@@ -376,6 +379,26 @@ export function attachGatewayWsMessageHandler(params: {
           rateLimiter,
           clientIp,
         });
+
+        // ── Tenant API key fallback: if shared auth failed and token starts
+        //    with osk_, attempt to resolve via ApiKeyProvider. ──────────────
+        let resolvedTenantId: string | undefined;
+        const connectToken = connectParams.auth?.token;
+        if (
+          !authOk &&
+          typeof connectToken === "string" &&
+          connectToken.startsWith("osk_") &&
+          stateProvider?.apiKeys
+        ) {
+          const resolved = await stateProvider.apiKeys.resolveApiKey(connectToken);
+          if (resolved) {
+            resolvedTenantId = resolved.tenantId;
+            authOk = true;
+            authResult = { ok: true, method: "token" };
+            authMethod = "token";
+            sharedAuthOk = true;
+          }
+        }
         const rejectUnauthorized = (failedAuth: GatewayAuthResult) => {
           markHandshakeFailure("unauthorized", {
             authMode: resolvedAuth.mode,
@@ -818,6 +841,7 @@ export function attachGatewayWsMessageHandler(params: {
           clientIp: reportedClientIp,
           canvasCapability,
           canvasCapabilityExpiresAtMs,
+          tenantId: resolvedTenantId,
         };
         setClient(nextClient);
         setHandshakeState("connected");

@@ -19,6 +19,8 @@ export type GatewayClient = {
   connect: ConnectParams;
   connId?: string;
   clientIp?: string;
+  /** Tenant ID resolved from osk_ API key during WS handshake. */
+  tenantId?: string;
 };
 
 export type RespondFn = (

@@ -9,4 +9,6 @@ export type GatewayWsClient = {
   clientIp?: string;
   canvasCapability?: string;
   canvasCapabilityExpiresAtMs?: number;
+  /** Tenant ID resolved from osk_ API key during WS handshake. */
+  tenantId?: string;
 };

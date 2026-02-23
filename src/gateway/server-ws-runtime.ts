@@ -1,5 +1,6 @@
 import type { WebSocketServer } from "ws";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
+import type { StateProvider } from "../state/types.js";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "./server-methods/types.js";
@@ -16,6 +17,7 @@ export function attachGatewayWsHandlers(params: {
   resolvedAuth: ResolvedGatewayAuth;
   /** Optional rate limiter for auth brute-force protection. */
   rateLimiter?: AuthRateLimiter;
+  stateProvider?: StateProvider;
   gatewayMethods: string[];
   events: string[];
   logGateway: ReturnType<typeof createSubsystemLogger>;
@@ -41,6 +43,7 @@ export function attachGatewayWsHandlers(params: {
     canvasHostServerPort: params.canvasHostServerPort,
     resolvedAuth: params.resolvedAuth,
     rateLimiter: params.rateLimiter,
+    stateProvider: params.stateProvider,
     gatewayMethods: params.gatewayMethods,
     events: params.events,
     logGateway: params.logGateway,

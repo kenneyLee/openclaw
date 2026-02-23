@@ -4,6 +4,7 @@ import { resolveCanvasHostUrl } from "../../infra/canvas-host-url.js";
 import { removeRemoteNodeInfo } from "../../infra/skills-remote.js";
 import { upsertPresence } from "../../infra/system-presence.js";
 import type { createSubsystemLogger } from "../../logging/subsystem.js";
+import type { StateProvider } from "../../state/types.js";
 import { truncateUtf16Safe } from "../../utils.js";
 import { isWebchatClient } from "../../utils/message-channel.js";
 import type { AuthRateLimiter } from "../auth-rate-limit.js";
@@ -65,6 +66,7 @@ export function attachGatewayWsConnectionHandler(params: {
   resolvedAuth: ResolvedGatewayAuth;
   /** Optional rate limiter for auth brute-force protection. */
   rateLimiter?: AuthRateLimiter;
+  stateProvider?: StateProvider;
   gatewayMethods: string[];
   events: string[];
   logGateway: SubsystemLogger;
@@ -90,6 +92,7 @@ export function attachGatewayWsConnectionHandler(params: {
     canvasHostServerPort,
     resolvedAuth,
     rateLimiter,
+    stateProvider,
     gatewayMethods,
     events,
     logGateway,
@@ -278,6 +281,7 @@ export function attachGatewayWsConnectionHandler(params: {
       connectNonce,
       resolvedAuth,
       rateLimiter,
+      stateProvider,
       gatewayMethods,
       events,
       extraHandlers,

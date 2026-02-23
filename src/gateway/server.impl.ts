@@ -579,6 +579,7 @@ export async function startGatewayServer(
     canvasHostServerPort,
     resolvedAuth,
     rateLimiter: authRateLimiter,
+    stateProvider,
     gatewayMethods,
     events: GATEWAY_EVENTS,
     logGateway: log,

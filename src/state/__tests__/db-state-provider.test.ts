@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
+import { DatabaseBootstrapProvider } from "../db-bootstrap-provider.js";
 import { DatabaseRouteProvider } from "../db-route-provider.js";
 import { DatabaseSessionStoreProvider } from "../db-session-store-provider.js";
 import { createDatabaseStateProvider, DatabaseStateProvider } from "../db-state-provider.js";
@@ -29,10 +30,10 @@ describe("DatabaseStateProvider", () => {
     expect(provider.sessions).toBeInstanceOf(DatabaseSessionStoreProvider);
   });
 
-  test("bootstrap is undefined", () => {
+  test("bootstrap is a DatabaseBootstrapProvider instance", () => {
     const { pool } = createMockPool();
     const provider: StateProvider = new DatabaseStateProvider(pool);
-    expect(provider.bootstrap).toBeUndefined();
+    expect(provider.bootstrap).toBeInstanceOf(DatabaseBootstrapProvider);
   });
 
   test("createDatabaseStateProvider factory returns DatabaseStateProvider", () => {

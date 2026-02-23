@@ -1,7 +1,13 @@
 import type { Pool } from "mysql2/promise";
+import { DatabaseBootstrapProvider } from "./db-bootstrap-provider.js";
 import { DatabaseRouteProvider } from "./db-route-provider.js";
 import { DatabaseSessionStoreProvider } from "./db-session-store-provider.js";
-import type { RouteProvider, SessionStoreProvider, StateProvider } from "./types.js";
+import type {
+  BootstrapFileProvider,
+  RouteProvider,
+  SessionStoreProvider,
+  StateProvider,
+} from "./types.js";
 
 export type DatabaseStateProviderOptions = {
   routeMatchKey?: string;
@@ -9,11 +15,12 @@ export type DatabaseStateProviderOptions = {
 
 export class DatabaseStateProvider implements StateProvider {
   readonly id = "database";
+  readonly bootstrap: BootstrapFileProvider;
   readonly routing: RouteProvider;
   readonly sessions: SessionStoreProvider;
-  // bootstrap 暂未实现，留 undefined（StateProvider 接口中是 optional）
 
   constructor(pool: Pool, opts?: DatabaseStateProviderOptions) {
+    this.bootstrap = new DatabaseBootstrapProvider(pool);
     this.routing = new DatabaseRouteProvider(pool, { matchKey: opts?.routeMatchKey });
     this.sessions = new DatabaseSessionStoreProvider(pool);
   }

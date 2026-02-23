@@ -19,6 +19,7 @@ import {
 import { logVerbose } from "../../globals.js";
 import { clearCommandLane, getQueueSize } from "../../process/command-queue.js";
 import { normalizeMainKey } from "../../routing/session-key.js";
+import type { StateProvider } from "../../state/types.js";
 import { isReasoningTagProvider } from "../../utils/provider-utils.js";
 import { hasControlCommand } from "../command-detection.js";
 import { buildInboundMediaNote } from "../media-note.js";
@@ -105,6 +106,7 @@ type RunPreparedReplyParams = {
   storePath?: string;
   workspaceDir: string;
   abortedLastRun: boolean;
+  stateProvider?: StateProvider;
 };
 
 export async function runPreparedReply(
@@ -404,6 +406,7 @@ export async function runPreparedReply(
     originatingChatType: ctx.ChatType,
     run: {
       agentId,
+      tenantId: sessionCtx.TenantId,
       agentDir,
       sessionId: sessionIdFinal,
       sessionKey,
@@ -440,6 +443,7 @@ export async function runPreparedReply(
       ownerNumbers: command.ownerList.length > 0 ? command.ownerList : undefined,
       extraSystemPrompt: extraSystemPrompt || undefined,
       ...(isReasoningTagProvider(provider) ? { enforceFinalTag: true } : {}),
+      stateProvider: params.stateProvider,
     },
   };
 

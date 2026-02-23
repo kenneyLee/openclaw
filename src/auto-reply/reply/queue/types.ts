@@ -43,6 +43,7 @@ export type FollowupRun = {
   originatingChatType?: string;
   run: {
     agentId: string;
+    tenantId?: string;
     agentDir: string;
     sessionId: string;
     sessionKey?: string;
@@ -79,6 +80,7 @@ export type FollowupRun = {
     ownerNumbers?: string[];
     extraSystemPrompt?: string;
     enforceFinalTag?: boolean;
+    stateProvider?: import("../../../state/types.js").StateProvider;
   };
 };
 

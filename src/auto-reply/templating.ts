@@ -148,6 +148,8 @@ export type MsgContext = {
    * Used for hook confirmation messages like "Session context saved to memory".
    */
   HookMessages?: string[];
+  /** Tenant ID resolved by DatabaseRouteProvider. Undefined for file-based routing. */
+  TenantId?: string;
 };
 
 export type FinalizedMsgContext = Omit<MsgContext, "CommandAuthorized"> & {

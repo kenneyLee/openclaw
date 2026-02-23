@@ -121,6 +121,7 @@ export async function getReplyFromConfig(
   opts?.onTypingController?.(typing);
 
   const finalized = finalizeInboundContext(ctx);
+  const stateProvider = opts?.stateProvider;
 
   if (!isFastTestEnv) {
     await applyMediaUnderstanding({
@@ -145,6 +146,7 @@ export async function getReplyFromConfig(
     ctx: finalized,
     cfg,
     commandAuthorized,
+    stateProvider,
   });
   let {
     sessionCtx,
@@ -368,5 +370,6 @@ export async function getReplyFromConfig(
     storePath,
     workspaceDir,
     abortedLastRun,
+    stateProvider,
   });
 }

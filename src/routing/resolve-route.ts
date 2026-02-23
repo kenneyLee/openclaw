@@ -40,6 +40,8 @@ export type ResolvedAgentRoute = {
   agentId: string;
   channel: string;
   accountId: string;
+  /** Tenant ID resolved by DatabaseRouteProvider. Undefined for file-based routing. */
+  tenantId?: string;
   /** Internal session key used for persistence + concurrency. */
   sessionKey: string;
   /** Convenience alias for direct-chat collapse. */

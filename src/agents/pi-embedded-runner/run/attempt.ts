@@ -341,6 +341,7 @@ export async function runEmbeddedAttempt(
         config: params.config,
         sessionKey: params.sessionKey,
         sessionId: params.sessionId,
+        tenantId: params.tenantId,
         warn: makeBootstrapWarn({ sessionLabel, warn: (message) => log.warn(message) }),
         stateProvider: params.stateProvider,
       });

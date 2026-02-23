@@ -47,6 +47,7 @@ export async function resolveBootstrapFilesForRun(params: {
   sessionKey?: string;
   sessionId?: string;
   agentId?: string;
+  tenantId?: string;
   warn?: (message: string) => void;
   stateProvider?: StateProvider;
 }): Promise<WorkspaceBootstrapFile[]> {
@@ -54,6 +55,7 @@ export async function resolveBootstrapFilesForRun(params: {
   const rawFiles = params.stateProvider?.bootstrap
     ? await params.stateProvider.bootstrap.loadBootstrapFiles({
         workspaceDir: params.workspaceDir,
+        tenantId: params.tenantId,
         agentId: params.agentId,
       })
     : await loadWorkspaceBootstrapFiles(params.workspaceDir);
@@ -76,6 +78,7 @@ export async function resolveBootstrapContextForRun(params: {
   sessionKey?: string;
   sessionId?: string;
   agentId?: string;
+  tenantId?: string;
   warn?: (message: string) => void;
   stateProvider?: StateProvider;
 }): Promise<{

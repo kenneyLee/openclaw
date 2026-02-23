@@ -18,6 +18,7 @@ import {
   writeConfigFile,
 } from "../config/config.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
+import { setActiveSessionStoreProvider } from "../config/sessions/store.js";
 import { clearAgentRunContext, onAgentEvent } from "../infra/agent-events.js";
 import {
   ensureControlUiAssetsBuilt,
@@ -354,6 +355,9 @@ export async function startGatewayServer(
 
   const deps = createDefaultDeps();
   const stateProvider = createStateProviderFromConfig(cfgAtStart);
+  if (stateProvider.sessions) {
+    setActiveSessionStoreProvider(stateProvider.sessions);
+  }
   let canvasHostServer: CanvasHostServer | null = null;
   const gatewayTls = await loadGatewayTlsRuntime(cfgAtStart.gateway?.tls, log.child("tls"));
   if (cfgAtStart.gateway?.tls?.enabled && !gatewayTls.enabled) {

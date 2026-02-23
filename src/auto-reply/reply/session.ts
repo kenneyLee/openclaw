@@ -32,6 +32,7 @@ import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { normalizeMainKey } from "../../routing/session-key.js";
 import { parseAgentSessionKey } from "../../sessions/session-key-utils.js";
+import type { StateProvider } from "../../state/types.js";
 import { normalizeSessionDeliveryFields } from "../../utils/delivery-context.js";
 import {
   INTERNAL_MESSAGE_CHANNEL,
@@ -151,6 +152,7 @@ export async function initSessionState(params: {
   ctx: MsgContext;
   cfg: OpenClawConfig;
   commandAuthorized: boolean;
+  stateProvider?: StateProvider;
 }): Promise<SessionInitResult> {
   const { ctx, cfg, commandAuthorized } = params;
   // Native slash commands (Telegram/Discord/Slack) are delivered on a separate
@@ -178,9 +180,10 @@ export async function initSessionState(params: {
   // Stale cache (especially with multiple gateway processes or on Windows where
   // mtime granularity may miss rapid writes) can cause incorrect sessionId
   // generation, leading to orphaned transcript files. See #17971.
-  const sessionStore: Record<string, SessionEntry> = loadSessionStore(storePath, {
-    skipCache: true,
-  });
+  const sessionProvider = params.stateProvider?.sessions;
+  const sessionStore: Record<string, SessionEntry> = sessionProvider
+    ? await sessionProvider.loadSessionStore(storePath, { skipCache: true })
+    : loadSessionStore(storePath, { skipCache: true });
   let sessionKey: string | undefined;
   let sessionEntry: SessionEntry;
 

@@ -24,6 +24,7 @@ export type RunEmbeddedPiAgentParams = {
   sessionId: string;
   sessionKey?: string;
   agentId?: string;
+  tenantId?: string;
   messageChannel?: string;
   messageProvider?: string;
   agentAccountId?: string;

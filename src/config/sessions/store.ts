@@ -26,6 +26,22 @@ import { mergeSessionEntry, type SessionEntry } from "./types.js";
 const log = createSubsystemLogger("sessions/store");
 
 // ============================================================================
+// Module-level Session Store Provider Injection
+// ============================================================================
+
+import type { SessionStoreProvider } from "../../state/types.js";
+
+let _activeSessionStoreProvider: SessionStoreProvider | undefined;
+
+export function setActiveSessionStoreProvider(provider: SessionStoreProvider | undefined): void {
+  _activeSessionStoreProvider = provider;
+}
+
+export function getActiveSessionStoreProvider(): SessionStoreProvider | undefined {
+  return _activeSessionStoreProvider;
+}
+
+// ============================================================================
 // Session Store Cache with TTL Support
 // ============================================================================
 
@@ -703,6 +719,9 @@ export async function saveSessionStore(
   store: Record<string, SessionEntry>,
   opts?: SaveSessionStoreOptions,
 ): Promise<void> {
+  if (_activeSessionStoreProvider) {
+    return _activeSessionStoreProvider.saveSessionStore(storePath, store);
+  }
   await withSessionStoreLock(storePath, async () => {
     await saveSessionStoreUnlocked(storePath, store, opts);
   });
@@ -713,6 +732,9 @@ export async function updateSessionStore<T>(
   mutator: (store: Record<string, SessionEntry>) => Promise<T> | T,
   opts?: SaveSessionStoreOptions,
 ): Promise<T> {
+  if (_activeSessionStoreProvider) {
+    return _activeSessionStoreProvider.updateSessionStore(storePath, mutator);
+  }
   return await withSessionStoreLock(storePath, async () => {
     // Always re-read inside the lock to avoid clobbering concurrent writers.
     const store = loadSessionStore(storePath, { skipCache: true });

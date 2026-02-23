@@ -40,6 +40,7 @@ export class DatabaseRouteProvider implements RouteProvider {
         agentId: agent_id,
         channel,
         accountId: tenant_id,
+        tenantId: tenant_id,
         sessionKey,
         mainSessionKey,
         matchedBy: "database",

@@ -17,3 +17,6 @@ export {
   type DatabaseStateProviderOptions,
 } from "./db-state-provider.js";
 export { createDbPool, type DbPoolConfig } from "./db-connection.js";
+export { MustacheTemplateEngine, type TemplateEngine } from "./template-engine.js";
+export { TemplateStore, type Template } from "./template-store.js";
+export { RenderService } from "./render-service.js";

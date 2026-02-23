@@ -140,6 +140,9 @@ importers:
       markdown-it:
         specifier: ^14.1.1
         version: 14.1.1
+      mustache:
+        specifier: ^4.2.0
+        version: 4.2.0
       mysql2:
         specifier: ^3.17.5
         version: 3.17.5(@types/node@25.3.0)
@@ -204,6 +207,9 @@ importers:
       '@types/markdown-it':
         specifier: ^14.1.2
         version: 14.1.2
+      '@types/mustache':
+        specifier: ^4.2.6
+        version: 4.2.6
       '@types/node':
         specifier: ^25.3.0
         version: 25.3.0
@@ -2952,6 +2958,9 @@ packages:
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
 
+  '@types/mustache@4.2.6':
+    resolution: {integrity: sha512-t+8/QWTAhOFlrF1IVZqKnMRJi84EgkIK5Kh0p2JV4OLywUvCwJPFxbJAl7XAow7DVIHsF+xW9f1MVzg0L6Szjw==}
+
   '@types/node@10.17.60':
     resolution: {integrity: sha512-F0KIgDJfy2nA3zMLmWGKxcH2ZVEtCZXHHdOQs2gSaQ27+lNeEfGxzkIw90aXswATX7AZ33tahPbzy6KAfUreVw==}
 
@@ -4575,6 +4584,10 @@ packages:
   music-metadata@11.12.1:
     resolution: {integrity: sha512-j++ltLxHDb5VCXET9FzQ8bnueiLHwQKgCO7vcbkRH/3F7fRjPkv6qncGEJ47yFhmemcYtgvsOAlcQ1dRBTkDjg==}
     engines: {node: '>=18'}
+
+  mustache@4.2.0:
+    resolution: {integrity: sha512-71ippSywq5Yb7/tVYyGbkBggbU8H3u5Rz56fH60jGFgr8uHwxs+aSKeqmluIVzM0m0kB7xQjKS6qPfd0b2ZoqQ==}
+    hasBin: true
 
   mysql2@3.17.5:
     resolution: {integrity: sha512-Qb5kOObI10PUTjMRrvJhegiu2i7EmbCm2F2tbYHp9gCfpbLWjk39+TeoA6ususBc8xZa3pmRI6z0kPQldpcA8A==}
@@ -8554,6 +8567,8 @@ snapshots:
 
   '@types/ms@2.1.0': {}
 
+  '@types/mustache@4.2.6': {}
+
   '@types/node@10.17.60': {}
 
   '@types/node@20.19.33':
@@ -10343,6 +10358,8 @@ snapshots:
       win-guid: 0.2.1
     transitivePeerDependencies:
       - supports-color
+
+  mustache@4.2.0: {}
 
   mysql2@3.17.5(@types/node@25.3.0):
     dependencies:

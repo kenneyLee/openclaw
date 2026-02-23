@@ -400,6 +400,7 @@ export async function startGatewayServer(
     canvasRuntime,
     canvasHostEnabled,
     allowCanvasHostInTests: opts.allowCanvasHostInTests,
+    stateProvider,
     logCanvas,
     log,
     logHooks,

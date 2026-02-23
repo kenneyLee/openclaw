@@ -19,6 +19,8 @@ import { loadConfig } from "../config/config.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { safeEqualSecret } from "../security/secret-equal.js";
 import { handleSlackHttpRequest } from "../slack/http/index.js";
+import type { StateProvider } from "../state/types.js";
+import { handleAdminTenantsHttpRequest } from "./admin-tenants-http.js";
 import {
   AUTH_RATE_LIMIT_SCOPE_HOOK_AUTH,
   createAuthRateLimiter,
@@ -422,6 +424,7 @@ export function createGatewayHttpServer(opts: {
   resolvedAuth: ResolvedGatewayAuth;
   /** Optional rate limiter for auth brute-force protection. */
   rateLimiter?: AuthRateLimiter;
+  stateProvider?: StateProvider;
   tlsOptions?: TlsOptions;
 }): HttpServer {
   const {
@@ -437,6 +440,7 @@ export function createGatewayHttpServer(opts: {
     handlePluginRequest,
     resolvedAuth,
     rateLimiter,
+    stateProvider,
   } = opts;
   const httpServer: HttpServer = opts.tlsOptions
     ? createHttpsServer(opts.tlsOptions, (req, res) => {
@@ -508,12 +512,24 @@ export function createGatewayHttpServer(opts: {
       }
       if (openResponsesEnabled) {
         if (
+          await handleAdminTenantsHttpRequest(req, res, {
+            auth: resolvedAuth,
+            trustedProxies,
+            allowRealIpFallback,
+            rateLimiter,
+            stateProvider,
+          })
+        ) {
+          return;
+        }
+        if (
           await handleOpenResponsesHttpRequest(req, res, {
             auth: resolvedAuth,
             config: openResponsesConfig,
             trustedProxies,
             allowRealIpFallback,
             rateLimiter,
+            stateProvider,
           })
         ) {
           return;

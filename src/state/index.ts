@@ -3,6 +3,7 @@ export type {
   BootstrapFileProvider,
   SessionStoreProvider,
   RouteProvider,
+  ApiKeyProvider,
   BootstrapLoadContext,
 } from "./types.js";
 export { FileStateProvider, createFileStateProvider } from "./file-state-provider.js";
@@ -17,6 +18,7 @@ export {
   type DatabaseStateProviderOptions,
 } from "./db-state-provider.js";
 export { createDbPool, type DbPoolConfig } from "./db-connection.js";
+export { DatabaseApiKeyProvider } from "./db-api-key-provider.js";
 export { MustacheTemplateEngine, type TemplateEngine } from "./template-engine.js";
 export { TemplateStore, type Template } from "./template-store.js";
 export { RenderService } from "./render-service.js";

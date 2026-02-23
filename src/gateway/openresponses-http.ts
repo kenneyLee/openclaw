@@ -29,6 +29,7 @@ import {
   type InputImageSource,
 } from "../media/input-files.js";
 import { defaultRuntime } from "../runtime.js";
+import type { StateProvider } from "../state/types.js";
 import { resolveAssistantStreamDeltaText } from "./agent-event-assistant-text.js";
 import {
   buildAgentMessageFromConversationEntries,
@@ -36,9 +37,10 @@ import {
 } from "./agent-prompt.js";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
-import { sendJson, setSseHeaders, writeDone } from "./http-common.js";
-import { handleGatewayPostJsonEndpoint } from "./http-endpoint-helpers.js";
-import { resolveAgentIdForRequest, resolveSessionKey } from "./http-utils.js";
+import { authorizeGatewayBearerRequestOrReply } from "./http-auth-helpers.js";
+import { sendJson, sendMethodNotAllowed, setSseHeaders, writeDone } from "./http-common.js";
+import { readJsonBodyOrError } from "./http-common.js";
+import { getBearerToken, resolveAgentIdForRequest, resolveSessionKey } from "./http-utils.js";
 import {
   CreateResponseBodySchema,
   type ContentPart,
@@ -57,6 +59,7 @@ type OpenResponsesHttpOptions = {
   trustedProxies?: string[];
   allowRealIpFallback?: boolean;
   rateLimiter?: AuthRateLimiter;
+  stateProvider?: StateProvider;
 };
 
 const DEFAULT_BODY_BYTES = 20 * 1024 * 1024;
@@ -310,6 +313,8 @@ async function runResponsesAgentCommand(params: {
   sessionKey: string;
   runId: string;
   deps: ReturnType<typeof createDefaultDeps>;
+  stateProvider?: StateProvider;
+  tenantId?: string;
 }) {
   return agentCommand(
     {
@@ -323,6 +328,8 @@ async function runResponsesAgentCommand(params: {
       deliver: false,
       messageChannel: "webchat",
       bestEffortDeliver: false,
+      stateProvider: params.stateProvider,
+      tenantId: params.tenantId,
     },
     defaultRuntime,
     params.deps,
@@ -334,29 +341,56 @@ export async function handleOpenResponsesHttpRequest(
   res: ServerResponse,
   opts: OpenResponsesHttpOptions,
 ): Promise<boolean> {
+  // ── URL + Method gate ──────────────────────────────────────────────────
+  const url = new URL(req.url ?? "/", `http://${req.headers.host || "localhost"}`);
+  if (url.pathname !== "/v1/responses") {
+    return false;
+  }
+  if (req.method !== "POST") {
+    sendMethodNotAllowed(res);
+    return true;
+  }
+
+  // ── Dual auth: tenant API key (osk_) or gateway shared token ──────────
+  let tenantId: string | undefined;
+  const token = getBearerToken(req);
+  if (token && token.startsWith("osk_") && opts.stateProvider?.apiKeys) {
+    const resolved = await opts.stateProvider.apiKeys.resolveApiKey(token);
+    if (!resolved) {
+      sendJson(res, 401, {
+        error: { message: "Invalid or expired API key", type: "unauthorized" },
+      });
+      return true;
+    }
+    tenantId = resolved.tenantId;
+  } else {
+    // Fall back to existing gateway shared token auth
+    const authorized = await authorizeGatewayBearerRequestOrReply({
+      req,
+      res,
+      auth: opts.auth,
+      trustedProxies: opts.trustedProxies,
+      allowRealIpFallback: opts.allowRealIpFallback,
+      rateLimiter: opts.rateLimiter,
+    });
+    if (!authorized) {
+      return true; // auth helper already wrote the 401/429 response
+    }
+  }
+
+  // ── Read + validate body ──────────────────────────────────────────────
   const limits = resolveResponsesLimits(opts.config);
   const maxBodyBytes =
     opts.maxBodyBytes ??
     (opts.config?.maxBodyBytes
       ? limits.maxBodyBytes
       : Math.max(limits.maxBodyBytes, limits.files.maxBytes * 2, limits.images.maxBytes * 2));
-  const handled = await handleGatewayPostJsonEndpoint(req, res, {
-    pathname: "/v1/responses",
-    auth: opts.auth,
-    trustedProxies: opts.trustedProxies,
-    allowRealIpFallback: opts.allowRealIpFallback,
-    rateLimiter: opts.rateLimiter,
-    maxBodyBytes,
-  });
-  if (handled === false) {
-    return false;
-  }
-  if (!handled) {
-    return true;
+  const rawBody = await readJsonBodyOrError(req, res, maxBodyBytes);
+  if (rawBody === undefined) {
+    return true; // readJsonBodyOrError already wrote the error response
   }
 
-  // Validate request body with Zod
-  const parseResult = CreateResponseBodySchema.safeParse(handled.body);
+  const parseResult = CreateResponseBodySchema.safeParse(rawBody);
   if (!parseResult.success) {
     const issue = parseResult.error.issues[0];
     const message = issue ? `${issue.path.join(".")}: ${issue.message}` : "Invalid request body";
@@ -481,7 +515,8 @@ export async function handleOpenResponsesHttpRequest(
     return true;
   }
   const agentId = resolveAgentIdForRequest({ req, model });
-  const sessionKey = resolveOpenResponsesSessionKey({ req, agentId, user });
+  const rawSessionKey = resolveOpenResponsesSessionKey({ req, agentId, user });
+  const sessionKey = tenantId ? `tenant:${tenantId}:${rawSessionKey}` : rawSessionKey;
 
   // Build prompt from input
   const prompt = buildAgentPrompt(payload.input);
@@ -528,6 +563,8 @@ export async function handleOpenResponsesHttpRequest(
         sessionKey,
         runId: responseId,
         deps,
+        stateProvider: opts.stateProvider,
+        tenantId,
       });
 
       const payloads = (result as { payloads?: Array<{ text?: string }> } | null)?.payloads;
@@ -760,6 +797,8 @@ export async function handleOpenResponsesHttpRequest(
         sessionKey,
         runId: responseId,
         deps,
+        stateProvider: opts.stateProvider,
+        tenantId,
       });
 
       finalUsage = extractUsageFromResult(result);

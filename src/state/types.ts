@@ -38,6 +38,10 @@ export interface RouteProvider {
   ): ResolvedAgentRoute | Promise<ResolvedAgentRoute>;
 }
 
+export interface ApiKeyProvider {
+  resolveApiKey(rawKey: string): Promise<{ tenantId: string; scopes: string[] | null } | null>;
+}
+
 /**
  * Composite StateProvider — all sub-providers are optional,
  * allowing incremental adoption. Missing = use existing code path.
@@ -47,4 +51,5 @@ export interface StateProvider {
   readonly bootstrap?: BootstrapFileProvider;
   readonly sessions?: SessionStoreProvider;
   readonly routing?: RouteProvider;
+  readonly apiKeys?: ApiKeyProvider;
 }

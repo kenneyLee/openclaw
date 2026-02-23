@@ -76,4 +76,8 @@ export type AgentCommandOpts = {
   inputProvenance?: InputProvenance;
   /** Per-call stream param overrides (best-effort). */
   streamParams?: AgentStreamParams;
+  /** Multi-tenant state provider for DB-backed bootstrap/sessions/routing/apiKeys. */
+  stateProvider?: import("../../state/types.js").StateProvider;
+  /** Tenant identifier resolved from API key auth. */
+  tenantId?: string;
 };

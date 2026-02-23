@@ -113,6 +113,8 @@ function runAgentAttempt(params: {
   agentDir: string;
   onAgentEvent: (evt: { stream: string; data?: Record<string, unknown> }) => void;
   primaryProvider: string;
+  stateProvider?: import("../state/types.js").StateProvider;
+  tenantId?: string;
 }) {
   const effectivePrompt = resolveFallbackRetryPrompt({
     body: params.body,
@@ -183,6 +185,8 @@ function runAgentAttempt(params: {
     streamParams: params.opts.streamParams,
     agentDir: params.agentDir,
     onAgentEvent: params.onAgentEvent,
+    stateProvider: params.stateProvider,
+    tenantId: params.tenantId,
   });
 }
 
@@ -600,6 +604,8 @@ export async function agentCommand(
             resolvedVerboseLevel,
             agentDir,
             primaryProvider: provider,
+            stateProvider: opts.stateProvider,
+            tenantId: opts.tenantId,
             onAgentEvent: (evt) => {
               // Track lifecycle end for fallback emission below.
               if (

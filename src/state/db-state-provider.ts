@@ -1,8 +1,10 @@
 import type { Pool } from "mysql2/promise";
+import { DatabaseApiKeyProvider } from "./db-api-key-provider.js";
 import { DatabaseBootstrapProvider } from "./db-bootstrap-provider.js";
 import { DatabaseRouteProvider } from "./db-route-provider.js";
 import { DatabaseSessionStoreProvider } from "./db-session-store-provider.js";
 import type {
+  ApiKeyProvider,
   BootstrapFileProvider,
   RouteProvider,
   SessionStoreProvider,
@@ -18,11 +20,13 @@ export class DatabaseStateProvider implements StateProvider {
   readonly bootstrap: BootstrapFileProvider;
   readonly routing: RouteProvider;
   readonly sessions: SessionStoreProvider;
+  readonly apiKeys: ApiKeyProvider;
 
   constructor(pool: Pool, opts?: DatabaseStateProviderOptions) {
     this.bootstrap = new DatabaseBootstrapProvider(pool);
     this.routing = new DatabaseRouteProvider(pool, { matchKey: opts?.routeMatchKey });
     this.sessions = new DatabaseSessionStoreProvider(pool);
+    this.apiKeys = new DatabaseApiKeyProvider(pool);
   }
 }
 

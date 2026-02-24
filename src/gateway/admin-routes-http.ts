@@ -24,6 +24,7 @@ type AdminRoutesHttpOptions = {
   allowRealIpFallback?: boolean;
   rateLimiter?: AuthRateLimiter;
   stateProvider?: StateProvider;
+  jwtSecret?: string;
 };
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -56,6 +57,7 @@ export async function handleAdminRoutesHttpRequest(
       allowRealIpFallback: opts.allowRealIpFallback,
       rateLimiter: opts.rateLimiter,
       maxBodyBytes: MAX_BODY_BYTES,
+      jwtSecret: opts.jwtSecret,
     });
     if (handled === false) {
       return false;
@@ -133,6 +135,7 @@ export async function handleAdminRoutesHttpRequest(
       trustedProxies: opts.trustedProxies,
       allowRealIpFallback: opts.allowRealIpFallback,
       rateLimiter: opts.rateLimiter,
+      jwtSecret: opts.jwtSecret,
     });
     if (!authorized) {
       return true;
@@ -178,6 +181,7 @@ export async function handleAdminRoutesHttpRequest(
       trustedProxies: opts.trustedProxies,
       allowRealIpFallback: opts.allowRealIpFallback,
       rateLimiter: opts.rateLimiter,
+      jwtSecret: opts.jwtSecret,
     });
     if (!authorized) {
       return true;

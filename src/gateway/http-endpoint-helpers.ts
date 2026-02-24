@@ -14,6 +14,7 @@ export async function handleGatewayPostJsonEndpoint(
     trustedProxies?: string[];
     allowRealIpFallback?: boolean;
     rateLimiter?: AuthRateLimiter;
+    jwtSecret?: string;
   },
 ): Promise<false | { body: unknown } | undefined> {
   const url = new URL(req.url ?? "/", `http://${req.headers.host || "localhost"}`);
@@ -33,6 +34,7 @@ export async function handleGatewayPostJsonEndpoint(
     trustedProxies: opts.trustedProxies,
     allowRealIpFallback: opts.allowRealIpFallback,
     rateLimiter: opts.rateLimiter,
+    jwtSecret: opts.jwtSecret,
   });
   if (!authorized) {
     return undefined;

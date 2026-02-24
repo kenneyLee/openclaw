@@ -54,6 +54,52 @@ export interface WebhookProvider {
   resolveWebhook(tenantId: string): Promise<WebhookConfig | null>;
 }
 
+export interface TenantProvider {
+  create(params: {
+    tenantId: string;
+    name?: string;
+    templateId?: string;
+    templateData?: Record<string, unknown>;
+  }): Promise<{
+    tenantId: string;
+    name: string;
+    templateId: string | null;
+    templateData: Record<string, unknown> | null;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  get(tenantId: string): Promise<{
+    tenantId: string;
+    name: string;
+    templateId: string | null;
+    templateData: Record<string, unknown> | null;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  } | null>;
+  list(): Promise<
+    Array<{
+      tenantId: string;
+      name: string;
+      templateId: string | null;
+      templateData: Record<string, unknown> | null;
+      status: string;
+      createdAt: string;
+      updatedAt: string;
+    }>
+  >;
+  update(
+    tenantId: string,
+    params: {
+      name?: string;
+      templateId?: string | null;
+      templateData?: Record<string, unknown> | null;
+      status?: "active" | "suspended";
+    },
+  ): Promise<{ updated: number }>;
+}
+
 /**
  * Composite StateProvider — all sub-providers are optional,
  * allowing incremental adoption. Missing = use existing code path.
@@ -65,4 +111,5 @@ export interface StateProvider {
   readonly routing?: RouteProvider;
   readonly apiKeys?: ApiKeyProvider;
   readonly webhooks?: WebhookProvider;
+  readonly tenants?: TenantProvider;
 }

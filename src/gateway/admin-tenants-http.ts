@@ -19,6 +19,7 @@ type AdminTenantsHttpOptions = {
   allowRealIpFallback?: boolean;
   rateLimiter?: AuthRateLimiter;
   stateProvider?: StateProvider;
+  jwtSecret?: string;
 };
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -45,6 +46,7 @@ export async function handleAdminTenantsHttpRequest(
     allowRealIpFallback: opts.allowRealIpFallback,
     rateLimiter: opts.rateLimiter,
     maxBodyBytes: MAX_BODY_BYTES,
+    jwtSecret: opts.jwtSecret,
   });
   if (handled === false) {
     return false;

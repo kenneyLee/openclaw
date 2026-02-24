@@ -3,6 +3,7 @@ import { DatabaseApiKeyProvider } from "./db-api-key-provider.js";
 import { DatabaseBootstrapProvider } from "./db-bootstrap-provider.js";
 import { DatabaseRouteProvider } from "./db-route-provider.js";
 import { DatabaseSessionStoreProvider } from "./db-session-store-provider.js";
+import { DatabaseTenantProvider } from "./db-tenant-provider.js";
 import { DatabaseWebhookProvider } from "./db-webhook-provider.js";
 import type {
   ApiKeyProvider,
@@ -10,6 +11,7 @@ import type {
   RouteProvider,
   SessionStoreProvider,
   StateProvider,
+  TenantProvider,
   WebhookProvider,
 } from "./types.js";
 
@@ -19,18 +21,22 @@ export type DatabaseStateProviderOptions = {
 
 export class DatabaseStateProvider implements StateProvider {
   readonly id = "database";
+  readonly pool: Pool;
   readonly bootstrap: BootstrapFileProvider;
   readonly routing: RouteProvider;
   readonly sessions: SessionStoreProvider;
   readonly apiKeys: ApiKeyProvider;
   readonly webhooks: WebhookProvider;
+  readonly tenants: TenantProvider;
 
   constructor(pool: Pool, opts?: DatabaseStateProviderOptions) {
+    this.pool = pool;
     this.bootstrap = new DatabaseBootstrapProvider(pool);
     this.routing = new DatabaseRouteProvider(pool, { matchKey: opts?.routeMatchKey });
     this.sessions = new DatabaseSessionStoreProvider(pool);
     this.apiKeys = new DatabaseApiKeyProvider(pool);
     this.webhooks = new DatabaseWebhookProvider(pool);
+    this.tenants = new DatabaseTenantProvider(pool);
   }
 }
 

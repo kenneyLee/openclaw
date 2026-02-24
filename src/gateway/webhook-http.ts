@@ -27,6 +27,7 @@ type WebhookHttpOptions = {
   allowRealIpFallback?: boolean;
   rateLimiter?: AuthRateLimiter;
   stateProvider?: StateProvider;
+  jwtSecret?: string;
 };
 
 const INBOUND_MAX_BODY_BYTES = 1024 * 1024; // 1 MB
@@ -180,6 +181,7 @@ export async function handleAdminWebhooksHttpRequest(
     allowRealIpFallback: opts.allowRealIpFallback,
     rateLimiter: opts.rateLimiter,
     maxBodyBytes: ADMIN_MAX_BODY_BYTES,
+    jwtSecret: opts.jwtSecret,
   });
   if (handled === false) {
     return false;

@@ -20,6 +20,8 @@ import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { safeEqualSecret } from "../security/secret-equal.js";
 import { handleSlackHttpRequest } from "../slack/http/index.js";
 import type { StateProvider } from "../state/types.js";
+import { handleAdminApiHttpRequest } from "./admin-api-http.js";
+import { handleAdminAuthHttpRequest } from "./admin-auth-http.js";
 import { handleAdminRoutesHttpRequest } from "./admin-routes-http.js";
 import { handleAdminTenantsHttpRequest } from "./admin-tenants-http.js";
 import {
@@ -465,6 +467,7 @@ export function createGatewayHttpServer(opts: {
       const configSnapshot = loadConfig();
       const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
       const allowRealIpFallback = configSnapshot.gateway?.allowRealIpFallback === true;
+      const jwtSecret = process.env.OPENCLAW_ADMIN_JWT_SECRET?.trim() || undefined;
       const scopedCanvas = normalizeCanvasScopedUrl(req.url ?? "/");
       if (scopedCanvas.malformedScopedPath) {
         sendGatewayAuthFailure(res, { ok: false, reason: "unauthorized" });
@@ -515,12 +518,33 @@ export function createGatewayHttpServer(opts: {
       }
       if (openResponsesEnabled) {
         if (
+          await handleAdminAuthHttpRequest(req, res, {
+            jwtSecret,
+            stateProvider,
+          })
+        ) {
+          return;
+        }
+        if (
+          await handleAdminApiHttpRequest(req, res, {
+            auth: resolvedAuth,
+            trustedProxies,
+            allowRealIpFallback,
+            rateLimiter,
+            stateProvider,
+            jwtSecret,
+          })
+        ) {
+          return;
+        }
+        if (
           await handleAdminTenantsHttpRequest(req, res, {
             auth: resolvedAuth,
             trustedProxies,
             allowRealIpFallback,
             rateLimiter,
             stateProvider,
+            jwtSecret,
           })
         ) {
           return;
@@ -532,6 +556,7 @@ export function createGatewayHttpServer(opts: {
             allowRealIpFallback,
             rateLimiter,
             stateProvider,
+            jwtSecret,
           })
         ) {
           return;
@@ -554,6 +579,7 @@ export function createGatewayHttpServer(opts: {
             allowRealIpFallback,
             rateLimiter,
             stateProvider,
+            jwtSecret,
           })
         ) {
           return;

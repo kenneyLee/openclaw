@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { Pool, RowDataPacket } from "mysql2/promise";
+import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import type { WebhookConfig, WebhookProvider } from "./types.js";
 
 const WEBHOOK_ID_PREFIX = "wh_";
@@ -11,6 +11,28 @@ interface WebhookRow extends RowDataPacket {
   callback_url: string;
   signing_secret: string;
   agent_id: string;
+}
+
+interface WebhookListRow extends RowDataPacket {
+  id: number;
+  webhook_id: string;
+  tenant_id: string;
+  callback_url: string;
+  agent_id: string;
+  enabled: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookListItem {
+  id: number;
+  webhookId: string;
+  tenantId: string;
+  callbackUrl: string;
+  agentId: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export class DatabaseWebhookProvider implements WebhookProvider {
@@ -51,5 +73,31 @@ export class DatabaseWebhookProvider implements WebhookProvider {
       [params.tenantId, webhookId, params.callbackUrl, signingSecret, params.agentId ?? "main"],
     );
     return { webhookId, signingSecret };
+  }
+
+  async listWebhooks(tenantId?: string): Promise<WebhookListItem[]> {
+    const query = tenantId
+      ? "SELECT id, webhook_id, tenant_id, callback_url, agent_id, enabled, created_at, updated_at FROM tenant_webhooks WHERE tenant_id = ? ORDER BY id"
+      : "SELECT id, webhook_id, tenant_id, callback_url, agent_id, enabled, created_at, updated_at FROM tenant_webhooks ORDER BY id";
+    const params = tenantId ? [tenantId] : [];
+    const [rows] = await this.pool.execute<WebhookListRow[]>(query, params);
+    return rows.map((row) => ({
+      id: row.id,
+      webhookId: row.webhook_id,
+      tenantId: row.tenant_id,
+      callbackUrl: row.callback_url,
+      agentId: row.agent_id,
+      enabled: row.enabled === 1,
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at),
+    }));
+  }
+
+  async deleteWebhook(id: number): Promise<{ deleted: number }> {
+    const [result] = await this.pool.execute<ResultSetHeader>(
+      "DELETE FROM tenant_webhooks WHERE id = ?",
+      [id],
+    );
+    return { deleted: result.affectedRows };
   }
 }

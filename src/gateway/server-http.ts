@@ -517,6 +517,19 @@ export function createGatewayHttpServer(opts: {
           return;
         }
       }
+      // Entity Memory API — independent of openResponses, only requires database backend
+      if (
+        await handleAdminEntityMemoryHttpRequest(req, res, {
+          auth: resolvedAuth,
+          trustedProxies,
+          allowRealIpFallback,
+          rateLimiter,
+          stateProvider,
+          jwtSecret,
+        })
+      ) {
+        return;
+      }
       if (openResponsesEnabled) {
         if (
           await handleAdminAuthHttpRequest(req, res, {
@@ -575,18 +588,6 @@ export function createGatewayHttpServer(opts: {
         }
         if (
           await handleAdminRoutesHttpRequest(req, res, {
-            auth: resolvedAuth,
-            trustedProxies,
-            allowRealIpFallback,
-            rateLimiter,
-            stateProvider,
-            jwtSecret,
-          })
-        ) {
-          return;
-        }
-        if (
-          await handleAdminEntityMemoryHttpRequest(req, res, {
             auth: resolvedAuth,
             trustedProxies,
             allowRealIpFallback,

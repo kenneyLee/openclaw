@@ -118,6 +118,112 @@ function rowToConcern(row: ConcernRow): MemoryConcern {
   };
 }
 
+/**
+ * Assemble MEMORY.md content from profile, concerns, and episodes.
+ * Returns null if there is no data to render.
+ */
+function assembleMemoryMarkdown(
+  profile: MemoryProfile | null,
+  concerns: MemoryConcern[],
+  episodes: MemoryEpisode[],
+): string | null {
+  if (!profile && concerns.length === 0 && episodes.length === 0) {
+    return null;
+  }
+
+  const parts: string[] = ["# 记忆档案\n"];
+
+  if (profile?.profileData) {
+    const data = profile.profileData;
+
+    if (Array.isArray(data.medical_facts) && data.medical_facts.length > 0) {
+      parts.push("## 重要医疗信息");
+      for (const f of data.medical_facts) {
+        parts.push(`- ${formatFact(f)}`);
+      }
+      parts.push("");
+    }
+
+    if (data.baby_snapshot && typeof data.baby_snapshot === "object") {
+      parts.push("## 宝宝基本信息");
+      const snap = data.baby_snapshot as Record<string, unknown>;
+      for (const [k, v] of Object.entries(snap)) {
+        if (v !== null && v !== undefined && v !== "") {
+          parts.push(
+            `- ${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v as string | number | boolean)}`,
+          );
+        }
+      }
+      parts.push("");
+    }
+
+    if (data.feeding_profile && typeof data.feeding_profile === "object") {
+      parts.push("## 喂养情况");
+      const fp = data.feeding_profile as Record<string, unknown>;
+      for (const [k, v] of Object.entries(fp)) {
+        if (v !== null && v !== undefined && v !== "") {
+          parts.push(
+            `- ${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v as string | number | boolean)}`,
+          );
+        }
+      }
+      parts.push("");
+    }
+
+    if (Array.isArray(data.next_actions) && data.next_actions.length > 0) {
+      parts.push("## 待办事项");
+      for (const a of data.next_actions) {
+        parts.push(`- ${formatFact(a)}`);
+      }
+      parts.push("");
+    }
+  }
+
+  if (concerns.length > 0) {
+    parts.push("## 当前关注事项");
+    for (const c of concerns) {
+      const marker = c.severity === "critical" || c.severity === "high" ? "[!] " : "";
+      parts.push(
+        `- ${marker}${c.displayName} (${c.severity}, 已提及${c.mentionCount}次, 最近: ${fmtDate(c.lastSeenAt)})`,
+      );
+    }
+    parts.push("");
+  }
+
+  if (episodes.length > 0) {
+    parts.push("## 近期记录");
+    for (const e of episodes) {
+      parts.push(`- [${fmtDate(e.createdAt)} ${e.channel}] ${truncate(e.content, 100)}`);
+    }
+    parts.push("");
+  }
+
+  return parts.join("\n");
+}
+
+/**
+ * Merge new medical_facts into existing ones with deduplication.
+ */
+function mergeMedicalFacts(
+  existing: Array<Record<string, unknown>>,
+  incoming: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const merged = [...existing];
+  for (const nf of incoming) {
+    const factText = (nf.fact as string) ?? (nf.text as string) ?? "";
+    if (!factText) {
+      continue;
+    }
+    const exists = merged.some(
+      (ef) => ((ef.fact as string) ?? (ef.text as string) ?? "") === factText,
+    );
+    if (!exists) {
+      merged.push(nf);
+    }
+  }
+  return merged;
+}
+
 // ── Provider ────────────────────────────────────────────────────────
 
 export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
@@ -285,7 +391,8 @@ export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
               > FIELD(severity, 'low','medium','high','critical')
            THEN VALUES(severity) ELSE severity END,
          last_seen_at = CURRENT_TIMESTAMP,
-         status = CASE WHEN status = 'resolved' THEN 'active' ELSE status END`,
+         status = CASE WHEN status = 'resolved' THEN 'active' ELSE status END,
+         resolved_at = CASE WHEN status = 'resolved' THEN NULL ELSE resolved_at END`,
       [
         tenantId,
         concern.concernKey,
@@ -341,9 +448,10 @@ export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
       return { updated: result.affectedRows };
     }
 
+    // For improving/escalated, clear resolved_at (may have been set previously)
     const [result] = await this.pool.execute<ResultSetHeader>(
       `UPDATE oc_memory_concerns
-       SET status = ?
+       SET status = ?, resolved_at = NULL
        WHERE tenant_id = ? AND concern_key = ?`,
       [status, tenantId, concernKey],
     );
@@ -359,81 +467,10 @@ export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
       this.getRecentEpisodes(tenantId, { limit: 10 }),
     ]);
 
-    if (!profile && concerns.length === 0 && episodes.length === 0) {
+    const content = assembleMemoryMarkdown(profile, concerns, episodes);
+    if (!content) {
       return { rendered: false };
     }
-
-    const parts: string[] = ["# 记忆档案\n"];
-
-    // Profile sections
-    if (profile?.profileData) {
-      const data = profile.profileData;
-
-      if (Array.isArray(data.medical_facts) && data.medical_facts.length > 0) {
-        parts.push("## 重要医疗信息");
-        for (const f of data.medical_facts) {
-          parts.push(`- ${formatFact(f)}`);
-        }
-        parts.push("");
-      }
-
-      if (data.baby_snapshot && typeof data.baby_snapshot === "object") {
-        parts.push("## 宝宝基本信息");
-        const snap = data.baby_snapshot as Record<string, unknown>;
-        for (const [k, v] of Object.entries(snap)) {
-          if (v !== null && v !== undefined && v !== "") {
-            parts.push(
-              `- ${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v as string | number | boolean)}`,
-            );
-          }
-        }
-        parts.push("");
-      }
-
-      if (data.feeding_profile && typeof data.feeding_profile === "object") {
-        parts.push("## 喂养情况");
-        const fp = data.feeding_profile as Record<string, unknown>;
-        for (const [k, v] of Object.entries(fp)) {
-          if (v !== null && v !== undefined && v !== "") {
-            parts.push(
-              `- ${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v as string | number | boolean)}`,
-            );
-          }
-        }
-        parts.push("");
-      }
-
-      if (Array.isArray(data.next_actions) && data.next_actions.length > 0) {
-        parts.push("## 待办事项");
-        for (const a of data.next_actions) {
-          parts.push(`- ${formatFact(a)}`);
-        }
-        parts.push("");
-      }
-    }
-
-    // Concerns
-    if (concerns.length > 0) {
-      parts.push("## 当前关注事项");
-      for (const c of concerns) {
-        const marker = c.severity === "critical" || c.severity === "high" ? "[!] " : "";
-        parts.push(
-          `- ${marker}${c.displayName} (${c.severity}, 已提及${c.mentionCount}次, 最近: ${fmtDate(c.lastSeenAt)})`,
-        );
-      }
-      parts.push("");
-    }
-
-    // Recent episodes
-    if (episodes.length > 0) {
-      parts.push("## 近期记录");
-      for (const e of episodes) {
-        parts.push(`- [${fmtDate(e.createdAt)} ${e.channel}] ${truncate(e.content, 100)}`);
-      }
-      parts.push("");
-    }
-
-    const content = parts.join("\n");
 
     await this.pool.execute(
       `INSERT INTO tenant_bootstrap_files (tenant_id, file_name, content)
@@ -443,5 +480,226 @@ export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
     );
 
     return { rendered: true };
+  }
+
+  // ── Transactional batch ingest ──────────────────────────────────
+  //
+  // Wraps profile update + episode insert + concern upserts + MEMORY.md
+  // render in a single MySQL transaction. Uses SELECT … FOR UPDATE on
+  // profile to prevent concurrent medical_facts data loss.
+
+  async ingest(
+    tenantId: string,
+    opts: {
+      profileUpdates?: Record<string, unknown>;
+      episode?: {
+        episodeType: string;
+        channel: string;
+        content: string;
+        metadata?: Record<string, unknown>;
+      };
+      concerns?: Array<{
+        concernKey: string;
+        displayName: string;
+        severity: "low" | "medium" | "high" | "critical";
+        evidenceText: string;
+        source: string;
+      }>;
+      render?: boolean;
+    },
+  ): Promise<{
+    profile?: { updated: boolean; newVersion: number };
+    episode?: { id: number };
+    concerns?: Array<{ id: number; mentionCount: number }>;
+    render?: { rendered: boolean };
+  }> {
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const results: Record<string, unknown> = {};
+
+      // ── 1. Profile update (with FOR UPDATE lock + medical_facts merge) ──
+
+      if (opts.profileUpdates && Object.keys(opts.profileUpdates).length > 0) {
+        const [profileRows] = await conn.execute<ProfileRow[]>(
+          `SELECT tenant_id, profile_data, version, last_interaction_at, created_at, updated_at
+           FROM oc_memory_profiles WHERE tenant_id = ? FOR UPDATE`,
+          [tenantId],
+        );
+        const current = profileRows.length > 0 ? rowToProfile(profileRows[0]) : null;
+        const currentVersion = current?.version ?? 0;
+
+        let updates = { ...opts.profileUpdates };
+
+        // medical_facts: append + deduplicate against locked current snapshot
+        if (Array.isArray(updates.medical_facts) && updates.medical_facts.length > 0) {
+          const existingFacts = Array.isArray(current?.profileData?.medical_facts)
+            ? (current.profileData.medical_facts as Array<Record<string, unknown>>)
+            : [];
+          updates = {
+            ...updates,
+            medical_facts: mergeMedicalFacts(
+              existingFacts,
+              updates.medical_facts as Array<Record<string, unknown>>,
+            ),
+          };
+        }
+
+        const updatesJson = JSON.stringify(updates);
+
+        if (currentVersion === 0) {
+          await conn.execute(
+            `INSERT INTO oc_memory_profiles (tenant_id, profile_data, version, last_interaction_at)
+             VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE
+               profile_data = JSON_MERGE_PATCH(profile_data, VALUES(profile_data)),
+               version = version + 1,
+               last_interaction_at = CURRENT_TIMESTAMP`,
+            [tenantId, updatesJson],
+          );
+          results.profile = { updated: true, newVersion: 1 };
+        } else {
+          await conn.execute<ResultSetHeader>(
+            `UPDATE oc_memory_profiles
+             SET profile_data = JSON_MERGE_PATCH(profile_data, ?),
+                 version = version + 1,
+                 last_interaction_at = CURRENT_TIMESTAMP
+             WHERE tenant_id = ? AND version = ?`,
+            [updatesJson, tenantId, currentVersion],
+          );
+          results.profile = { updated: true, newVersion: currentVersion + 1 };
+        }
+      }
+
+      // ── 2. Episode insert ──
+
+      if (opts.episode) {
+        const [result] = await conn.execute<ResultSetHeader>(
+          `INSERT INTO oc_memory_episodes (tenant_id, episode_type, channel, content, metadata)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            tenantId,
+            opts.episode.episodeType,
+            opts.episode.channel,
+            opts.episode.content,
+            opts.episode.metadata ? JSON.stringify(opts.episode.metadata) : null,
+          ],
+        );
+        results.episode = { id: result.insertId };
+      }
+
+      // ── 3. Concern upserts (clears resolved_at on reactivation) ──
+
+      if (opts.concerns && opts.concerns.length > 0) {
+        const concernResults: Array<{ id: number; mentionCount: number }> = [];
+        for (const c of opts.concerns) {
+          const evidenceObj = JSON.stringify({
+            text: c.evidenceText,
+            source: c.source,
+            date: new Date().toISOString().slice(0, 10),
+          });
+          const initialEvidence = JSON.stringify([
+            {
+              text: c.evidenceText,
+              source: c.source,
+              date: new Date().toISOString().slice(0, 10),
+            },
+          ]);
+
+          await conn.execute(
+            `INSERT INTO oc_memory_concerns
+               (tenant_id, concern_key, display_name, severity, evidence)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               mention_count = mention_count + 1,
+               evidence = JSON_ARRAY_APPEND(evidence, '$', CAST(? AS JSON)),
+               severity = CASE
+                 WHEN FIELD(VALUES(severity), 'low','medium','high','critical')
+                    > FIELD(severity, 'low','medium','high','critical')
+                 THEN VALUES(severity) ELSE severity END,
+               last_seen_at = CURRENT_TIMESTAMP,
+               status = CASE WHEN status = 'resolved' THEN 'active' ELSE status END,
+               resolved_at = CASE WHEN status = 'resolved' THEN NULL ELSE resolved_at END`,
+            [tenantId, c.concernKey, c.displayName, c.severity, initialEvidence, evidenceObj],
+          );
+
+          const [rows] = await conn.execute<ConcernRow[]>(
+            `SELECT id, mention_count FROM oc_memory_concerns
+             WHERE tenant_id = ? AND concern_key = ?`,
+            [tenantId, c.concernKey],
+          );
+          if (rows.length > 0) {
+            concernResults.push({ id: rows[0].id, mentionCount: rows[0].mention_count });
+          } else {
+            concernResults.push({ id: 0, mentionCount: 1 });
+          }
+        }
+        results.concerns = concernResults;
+      }
+
+      // ── 4. Render MEMORY.md (within transaction to see uncommitted data) ──
+
+      if (opts.render !== false) {
+        // Read data using the transaction connection
+        const [pRows] = await conn.execute<ProfileRow[]>(
+          `SELECT tenant_id, profile_data, version, last_interaction_at, created_at, updated_at
+           FROM oc_memory_profiles WHERE tenant_id = ?`,
+          [tenantId],
+        );
+        const renderProfile = pRows.length > 0 ? rowToProfile(pRows[0]) : null;
+
+        const [cRows] = await conn.execute<ConcernRow[]>(
+          `SELECT id, tenant_id, concern_key, display_name, severity, status,
+                  mention_count, evidence, first_seen_at, last_seen_at,
+                  resolved_at, followup_due, created_at, updated_at
+           FROM oc_memory_concerns
+           WHERE tenant_id = ? AND status IN ('active', 'improving', 'escalated')
+           ORDER BY FIELD(severity, 'critical','high','medium','low'), last_seen_at DESC`,
+          [tenantId],
+        );
+        const renderConcerns = cRows.map(rowToConcern);
+
+        const [eRows] = await conn.execute<EpisodeRow[]>(
+          `SELECT id, tenant_id, episode_type, channel, content, metadata, is_superseded, created_at
+           FROM oc_memory_episodes
+           WHERE tenant_id = ? AND is_superseded = 0
+           ORDER BY created_at DESC LIMIT ?`,
+          [tenantId, String(10)],
+        );
+        const renderEpisodes = eRows.map(rowToEpisode);
+
+        const markdownContent = assembleMemoryMarkdown(
+          renderProfile,
+          renderConcerns,
+          renderEpisodes,
+        );
+        if (markdownContent) {
+          await conn.execute(
+            `INSERT INTO tenant_bootstrap_files (tenant_id, file_name, content)
+             VALUES (?, 'MEMORY.md', ?)
+             ON DUPLICATE KEY UPDATE content = VALUES(content), updated_at = CURRENT_TIMESTAMP`,
+            [tenantId, markdownContent],
+          );
+          results.render = { rendered: true };
+        } else {
+          results.render = { rendered: false };
+        }
+      }
+
+      await conn.commit();
+
+      return results as {
+        profile?: { updated: boolean; newVersion: number };
+        episode?: { id: number };
+        concerns?: Array<{ id: number; mentionCount: number }>;
+        render?: { rendered: boolean };
+      };
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
   }
 }

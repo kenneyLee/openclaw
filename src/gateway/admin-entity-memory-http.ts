@@ -142,56 +142,15 @@ export async function handleAdminEntityMemoryHttpRequest(
         return true;
       }
 
-      const results: Record<string, unknown> = {};
-
-      // Profile updates — special handling for medical_facts (append + dedup)
-      if (body.profileUpdates && Object.keys(body.profileUpdates).length > 0) {
-        const current = await em.getProfile(body.tenantId);
-        const currentVersion = current?.version ?? 0;
-
-        let updates = { ...body.profileUpdates };
-
-        // medical_facts: append and deduplicate
-        if (Array.isArray(updates.medical_facts) && updates.medical_facts.length > 0) {
-          const existingFacts = Array.isArray(current?.profileData?.medical_facts)
-            ? (current.profileData.medical_facts as Array<Record<string, unknown>>)
-            : [];
-          const newFacts = updates.medical_facts as Array<Record<string, unknown>>;
-
-          const merged = [...existingFacts];
-          for (const nf of newFacts) {
-            const factText = String((nf.fact as string) ?? (nf.text as string) ?? "");
-            const exists = merged.some(
-              (ef) => String((ef.fact as string) ?? (ef.text as string) ?? "") === factText,
-            );
-            if (!exists && factText) {
-              merged.push(nf);
-            }
-          }
-          updates = { ...updates, medical_facts: merged };
-        }
-
-        results.profile = await em.upsertProfile(body.tenantId, updates, currentVersion);
-      }
-
-      // Episode
-      if (body.episode) {
-        results.episode = await em.insertEpisode(body.tenantId, body.episode);
-      }
-
-      // Concerns
-      if (body.concerns && body.concerns.length > 0) {
-        const concernResults: Array<{ id: number; mentionCount: number }> = [];
-        for (const c of body.concerns) {
-          concernResults.push(await em.upsertConcern(body.tenantId, c));
-        }
-        results.concerns = concernResults;
-      }
-
-      // Render MEMORY.md
-      if (body.render !== false) {
-        results.render = await em.renderMemoryFile(body.tenantId);
-      }
+      // Delegate to transactional ingest — profile/episode/concerns/render
+      // are wrapped in a single MySQL transaction to prevent partial writes.
+      // medical_facts merge uses SELECT … FOR UPDATE to prevent data loss.
+      const results = await em.ingest(body.tenantId, {
+        profileUpdates: body.profileUpdates,
+        episode: body.episode,
+        concerns: body.concerns,
+        render: body.render,
+      });
 
       sendJson(res, 200, { ok: true, results });
     } catch (err) {

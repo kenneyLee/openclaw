@@ -177,6 +177,33 @@ export interface EntityMemoryProvider {
   ): Promise<{ updated: number }>;
 
   renderMemoryFile(tenantId: string): Promise<{ rendered: boolean }>;
+
+  /** Transactional batch write: profile + episode + concerns + render in a single transaction. */
+  ingest(
+    tenantId: string,
+    opts: {
+      profileUpdates?: Record<string, unknown>;
+      episode?: {
+        episodeType: string;
+        channel: string;
+        content: string;
+        metadata?: Record<string, unknown>;
+      };
+      concerns?: Array<{
+        concernKey: string;
+        displayName: string;
+        severity: "low" | "medium" | "high" | "critical";
+        evidenceText: string;
+        source: string;
+      }>;
+      render?: boolean;
+    },
+  ): Promise<{
+    profile?: { updated: boolean; newVersion: number };
+    episode?: { id: number };
+    concerns?: Array<{ id: number; mentionCount: number }>;
+    render?: { rendered: boolean };
+  }>;
 }
 
 /**

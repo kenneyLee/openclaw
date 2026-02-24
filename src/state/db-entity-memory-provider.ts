@@ -391,8 +391,8 @@ export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
               > FIELD(severity, 'low','medium','high','critical')
            THEN VALUES(severity) ELSE severity END,
          last_seen_at = CURRENT_TIMESTAMP,
-         status = CASE WHEN status = 'resolved' THEN 'active' ELSE status END,
-         resolved_at = CASE WHEN status = 'resolved' THEN NULL ELSE resolved_at END`,
+         resolved_at = CASE WHEN status = 'resolved' THEN NULL ELSE resolved_at END,
+         status = CASE WHEN status = 'resolved' THEN 'active' ELSE status END`,
       [
         tenantId,
         concern.concernKey,
@@ -619,8 +619,8 @@ export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
                     > FIELD(severity, 'low','medium','high','critical')
                  THEN VALUES(severity) ELSE severity END,
                last_seen_at = CURRENT_TIMESTAMP,
-               status = CASE WHEN status = 'resolved' THEN 'active' ELSE status END,
-               resolved_at = CASE WHEN status = 'resolved' THEN NULL ELSE resolved_at END`,
+               resolved_at = CASE WHEN status = 'resolved' THEN NULL ELSE resolved_at END,
+               status = CASE WHEN status = 'resolved' THEN 'active' ELSE status END`,
             [tenantId, c.concernKey, c.displayName, c.severity, initialEvidence, evidenceObj],
           );
 

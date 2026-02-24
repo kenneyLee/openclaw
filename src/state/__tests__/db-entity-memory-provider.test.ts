@@ -318,9 +318,9 @@ describe("DatabaseEntityMemoryProvider — deadlock handling", () => {
 
     expect(getConnectionFn).toHaveBeenCalledTimes(2);
     expect(conn1.rollback).toHaveBeenCalled();
-    expect(conn1.release).toHaveBeenCalled();
+    expect(conn1.release).toHaveBeenCalledTimes(1);
     expect(conn2.commit).toHaveBeenCalled();
-    expect(conn2.release).toHaveBeenCalled();
+    expect(conn2.release).toHaveBeenCalledTimes(1);
   });
 
   test("ingest throws after max deadlock retries", async () => {

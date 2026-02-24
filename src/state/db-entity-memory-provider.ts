@@ -705,7 +705,6 @@ export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
         (err as Record<string, unknown>)?.errno === 1213 ||
         (err as Record<string, unknown>)?.code === "ER_LOCK_DEADLOCK";
       if (isDeadlock && retryCount < 1) {
-        conn.release();
         return this.ingest(tenantId, opts, retryCount + 1);
       }
       throw err;

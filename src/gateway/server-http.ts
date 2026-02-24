@@ -22,6 +22,7 @@ import { handleSlackHttpRequest } from "../slack/http/index.js";
 import type { StateProvider } from "../state/types.js";
 import { handleAdminApiHttpRequest } from "./admin-api-http.js";
 import { handleAdminAuthHttpRequest } from "./admin-auth-http.js";
+import { handleAdminEntityMemoryHttpRequest } from "./admin-entity-memory-http.js";
 import { handleAdminRoutesHttpRequest } from "./admin-routes-http.js";
 import { handleAdminTenantsHttpRequest } from "./admin-tenants-http.js";
 import {
@@ -574,6 +575,18 @@ export function createGatewayHttpServer(opts: {
         }
         if (
           await handleAdminRoutesHttpRequest(req, res, {
+            auth: resolvedAuth,
+            trustedProxies,
+            allowRealIpFallback,
+            rateLimiter,
+            stateProvider,
+            jwtSecret,
+          })
+        ) {
+          return;
+        }
+        if (
+          await handleAdminEntityMemoryHttpRequest(req, res, {
             auth: resolvedAuth,
             trustedProxies,
             allowRealIpFallback,

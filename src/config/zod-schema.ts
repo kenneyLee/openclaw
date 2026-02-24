@@ -581,6 +581,18 @@ export const OpenClawSchema = z
           })
           .strict()
           .optional(),
+        stateBackend: z.union([z.literal("file"), z.literal("database")]).optional(),
+        database: z
+          .object({
+            host: z.string(),
+            port: z.number().int().positive().optional(),
+            user: z.string(),
+            password: z.string(),
+            database: z.string(),
+            connectionLimit: z.number().int().positive().optional(),
+          })
+          .strict()
+          .optional(),
       })
       .strict()
       .optional(),

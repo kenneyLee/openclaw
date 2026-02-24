@@ -100,6 +100,85 @@ export interface TenantProvider {
   ): Promise<{ updated: number }>;
 }
 
+// ── Entity Memory Types ──
+
+export interface MemoryProfile {
+  tenantId: string;
+  profileData: Record<string, unknown>;
+  version: number;
+  lastInteractionAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemoryEpisode {
+  id: number;
+  tenantId: string;
+  episodeType: string;
+  channel: string;
+  content: string;
+  metadata: Record<string, unknown> | null;
+  isSuperseded: boolean;
+  createdAt: string;
+}
+
+export interface MemoryConcern {
+  id: number;
+  tenantId: string;
+  concernKey: string;
+  displayName: string;
+  severity: "low" | "medium" | "high" | "critical";
+  status: "active" | "improving" | "resolved" | "escalated";
+  mentionCount: number;
+  evidence: Array<{ text: string; source: string; date: string }>;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  resolvedAt: string | null;
+  followupDue: string | null;
+}
+
+export interface EntityMemoryProvider {
+  getProfile(tenantId: string): Promise<MemoryProfile | null>;
+  upsertProfile(
+    tenantId: string,
+    updates: Record<string, unknown>,
+    expectedVersion: number,
+  ): Promise<{ updated: boolean; newVersion: number }>;
+
+  insertEpisode(
+    tenantId: string,
+    episode: {
+      episodeType: string;
+      channel: string;
+      content: string;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<{ id: number }>;
+  getRecentEpisodes(
+    tenantId: string,
+    opts?: { limit?: number; episodeType?: string },
+  ): Promise<MemoryEpisode[]>;
+
+  upsertConcern(
+    tenantId: string,
+    concern: {
+      concernKey: string;
+      displayName: string;
+      severity: "low" | "medium" | "high" | "critical";
+      evidenceText: string;
+      source: string;
+    },
+  ): Promise<{ id: number; mentionCount: number }>;
+  getActiveConcerns(tenantId: string): Promise<MemoryConcern[]>;
+  updateConcernStatus(
+    tenantId: string,
+    concernKey: string,
+    status: "improving" | "resolved" | "escalated",
+  ): Promise<{ updated: number }>;
+
+  renderMemoryFile(tenantId: string): Promise<{ rendered: boolean }>;
+}
+
 /**
  * Composite StateProvider — all sub-providers are optional,
  * allowing incremental adoption. Missing = use existing code path.
@@ -112,4 +191,5 @@ export interface StateProvider {
   readonly apiKeys?: ApiKeyProvider;
   readonly webhooks?: WebhookProvider;
   readonly tenants?: TenantProvider;
+  readonly entityMemory?: EntityMemoryProvider;
 }

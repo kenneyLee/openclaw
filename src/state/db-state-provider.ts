@@ -1,6 +1,7 @@
 import type { Pool } from "mysql2/promise";
 import { DatabaseApiKeyProvider } from "./db-api-key-provider.js";
 import { DatabaseBootstrapProvider } from "./db-bootstrap-provider.js";
+import { DatabaseEntityMemoryProvider } from "./db-entity-memory-provider.js";
 import { DatabaseRouteProvider } from "./db-route-provider.js";
 import { DatabaseSessionStoreProvider } from "./db-session-store-provider.js";
 import { DatabaseTenantProvider } from "./db-tenant-provider.js";
@@ -8,6 +9,7 @@ import { DatabaseWebhookProvider } from "./db-webhook-provider.js";
 import type {
   ApiKeyProvider,
   BootstrapFileProvider,
+  EntityMemoryProvider,
   RouteProvider,
   SessionStoreProvider,
   StateProvider,
@@ -28,6 +30,7 @@ export class DatabaseStateProvider implements StateProvider {
   readonly apiKeys: ApiKeyProvider;
   readonly webhooks: WebhookProvider;
   readonly tenants: TenantProvider;
+  readonly entityMemory: EntityMemoryProvider;
 
   constructor(pool: Pool, opts?: DatabaseStateProviderOptions) {
     this.pool = pool;
@@ -37,6 +40,7 @@ export class DatabaseStateProvider implements StateProvider {
     this.apiKeys = new DatabaseApiKeyProvider(pool);
     this.webhooks = new DatabaseWebhookProvider(pool);
     this.tenants = new DatabaseTenantProvider(pool);
+    this.entityMemory = new DatabaseEntityMemoryProvider(pool);
   }
 }
 

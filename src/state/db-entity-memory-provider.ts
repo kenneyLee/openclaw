@@ -121,8 +121,9 @@ function rowToConcern(row: ConcernRow): MemoryConcern {
 /**
  * Assemble MEMORY.md content from profile, concerns, and episodes.
  * Returns null if there is no data to render.
+ * @internal Exported for unit testing.
  */
-function assembleMemoryMarkdown(
+export function assembleMemoryMarkdown(
   profile: MemoryProfile | null,
   concerns: MemoryConcern[],
   episodes: MemoryEpisode[],
@@ -203,8 +204,9 @@ function assembleMemoryMarkdown(
 
 /**
  * Merge new medical_facts into existing ones with deduplication.
+ * @internal Exported for unit testing.
  */
-function mergeMedicalFacts(
+export function mergeMedicalFacts(
   existing: Array<Record<string, unknown>>,
   incoming: Array<Record<string, unknown>>,
 ): Array<Record<string, unknown>> {
@@ -507,6 +509,7 @@ export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
       }>;
       render?: boolean;
     },
+    retryCount = 0,
   ): Promise<{
     profile?: { updated: boolean; newVersion: number };
     episode?: { id: number };
@@ -697,6 +700,14 @@ export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
       };
     } catch (err) {
       await conn.rollback();
+      // Deadlock retry: ER_LOCK_DEADLOCK (errno 1213)
+      const isDeadlock =
+        (err as Record<string, unknown>)?.errno === 1213 ||
+        (err as Record<string, unknown>)?.code === "ER_LOCK_DEADLOCK";
+      if (isDeadlock && retryCount < 1) {
+        conn.release();
+        return this.ingest(tenantId, opts, retryCount + 1);
+      }
       throw err;
     } finally {
       conn.release();

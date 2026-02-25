@@ -63,9 +63,18 @@ ${conversationLines}
 
 ## 输出要求
 请以 JSON 格式输出，包含以下字段：
-1. profileUpdates — 从对话中发现的新事实（如宝宝体重变化、喂养量变化等）。仅输出新增/变化的字段，不要重复已有档案中的信息。如果没有新信息则省略此字段。
-2. episodeSummary — 这段对话的简明摘要（100-200字）
-3. concerns — 发现的健康关注事项数组。每项包含 concernKey（英文标识如 "jaundice"）、displayName（中文名）、severity（low/medium/high/critical）、evidenceText（对话中的证据原文）。如果没有则省略。
+
+1. **profileUpdates** — 从对话中发现的新事实。**必须且只能使用以下四个固定字段名**：
+   - \`medical_facts\`: 数组，每项为 \`{"fact": "描述"}\`。用于记录医疗事实，包括：过敏、疾病诊断、用药情况、检查结果、医嘱等。
+   - \`baby_snapshot\`: 对象，键值对形式。用于记录宝宝基本信息，包括：体重、身高、头围、矫正月龄、出生胎龄等。
+   - \`feeding_profile\`: 对象，键值对形式。用于记录喂养情况，包括：喂养方式（母乳/配方奶/混合）、奶量、辅食添加情况等。
+   - \`next_actions\`: 数组，每项为 \`{"fact": "描述"}\`。用于记录待办事项，包括：预约随访、复查安排、需要购买的物品等。
+   - **不要使用上述四个以外的字段名**（如 medications、environment、sleepPosition 等都是错误的，应归入对应的正确字段）。
+   - 仅输出新增/变化的信息，不要重复已有档案。如果没有新信息则省略 profileUpdates。
+
+2. **episodeSummary** — 这段对话的简明摘要（100-200字）。
+
+3. **concerns** — 发现的健康关注事项数组。每项包含 concernKey（英文标识如 "jaundice"）、displayName（中文名）、severity（low/medium/high/critical）、evidenceText（对话中的证据原文）。如果没有则省略。
 
 仅输出 JSON，不要其他文字。`;
 }

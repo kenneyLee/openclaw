@@ -342,7 +342,7 @@ describe("extractFromRawMessages", () => {
     expect(promptContent).toContain('"baby_weight_kg": 4');
   });
 
-  test("uses low temperature for deterministic output", async () => {
+  test("does not set temperature (model compatibility)", async () => {
     vi.mocked(completeSimple).mockResolvedValue(
       mockAssistantMessage([{ type: "text", text: JSON.stringify(sampleExtraction) }]),
     );
@@ -350,6 +350,6 @@ describe("extractFromRawMessages", () => {
     await extractFromRawMessages({ messages: sampleMessages, channel: "im" });
 
     const callArgs = vi.mocked(completeSimple).mock.calls[0];
-    expect(callArgs[2]!.temperature).toBe(0.1);
+    expect(callArgs[2]!.temperature).toBeUndefined();
   });
 });

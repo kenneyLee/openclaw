@@ -175,7 +175,7 @@ export async function extractFromRawMessages(params: {
     {
       apiKey,
       maxTokens: 2000,
-      temperature: 0.1,
+      // Omit temperature — some models (e.g. kimi-k2.5) reject non-default values.
       signal: params.signal,
     },
   );

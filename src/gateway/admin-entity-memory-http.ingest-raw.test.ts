@@ -467,6 +467,21 @@ describe("admin-entity-memory-http /ingest-raw message validation", () => {
     expect(body.error?.message).toContain("messages[0].timestamp is not a valid ISO 8601 date");
   });
 
+  test("rejects non-ISO date formats that Date.parse would accept", async () => {
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: [{ role: "parent", content: "你好", timestamp: "Feb 25, 2026" }],
+    });
+    const { res } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+    expect(res.statusCode).toBe(400);
+  });
+
   test("allows messages without timestamp", async () => {
     vi.mocked(readJsonBodyOrError).mockResolvedValue({
       tenantId: "t1",

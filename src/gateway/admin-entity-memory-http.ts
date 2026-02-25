@@ -217,6 +217,9 @@ export async function handleAdminEntityMemoryHttpRequest(
       const MAX_MESSAGES = 200;
       const MAX_TOTAL_CHARS = 50_000;
       const VALID_ROLES = new Set(["parent", "caregiver", "system"]);
+      // ISO 8601: 2026-02-25, 2026-02-25T10:30:00, 2026-02-25T10:30:00Z, 2026-02-25T10:30:00+08:00
+      const ISO_8601_RE =
+        /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
 
       if (body.messages.length > MAX_MESSAGES) {
         sendJson(res, 400, {
@@ -256,7 +259,11 @@ export async function handleAdminEntityMemoryHttpRequest(
           return true;
         }
         if (msg.timestamp !== undefined) {
-          if (typeof msg.timestamp !== "string" || Number.isNaN(Date.parse(msg.timestamp))) {
+          if (
+            typeof msg.timestamp !== "string" ||
+            !ISO_8601_RE.test(msg.timestamp) ||
+            Number.isNaN(Date.parse(msg.timestamp))
+          ) {
             sendJson(res, 400, {
               error: {
                 message: `messages[${i}].timestamp is not a valid ISO 8601 date`,
@@ -280,11 +287,10 @@ export async function handleAdminEntityMemoryHttpRequest(
       }
 
       // ── Helper: build fallback content from raw messages ──
+      // Input is already bounded by MAX_TOTAL_CHARS validation above,
+      // so no truncation needed — fallback preserves full original content.
       const buildFallbackContent = () =>
-        body.messages
-          .map((m) => `[${m.role}] ${m.content}`)
-          .join("\n")
-          .slice(0, 5000);
+        body.messages.map((m) => `[${m.role}] ${m.content}`).join("\n");
 
       // Load existing profile for deduplication
       let existingProfile: Record<string, unknown> | null = null;

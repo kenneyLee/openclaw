@@ -3,6 +3,7 @@ import { describe, expect, test, vi, beforeEach } from "vitest";
 import {
   buildExtractionPrompt,
   extractFromRawMessages,
+  normalizeProfileUpdates,
   parseExtractionJson,
   type RawMessage,
 } from "../memory-extraction.js";
@@ -72,7 +73,7 @@ const sampleMessages: RawMessage[] = [
 ];
 
 const sampleExtraction = {
-  profileUpdates: { baby_weight_kg: 4.2 },
+  profileUpdates: { baby_snapshot: { weight_kg: 4.2 } },
   episodeSummary: "家长反馈宝宝体重增长至4.2kg，较上周增长200g。照护师确认增长良好。",
   concerns: [],
 };
@@ -127,7 +128,7 @@ describe("parseExtractionJson", () => {
     const json = JSON.stringify(sampleExtraction);
     const result = parseExtractionJson(json);
     expect(result.episodeSummary).toBe(sampleExtraction.episodeSummary);
-    expect(result.profileUpdates).toEqual({ baby_weight_kg: 4.2 });
+    expect(result.profileUpdates).toEqual({ baby_snapshot: { weight_kg: 4.2 } });
   });
 
   test("handles markdown code fence wrapping", () => {
@@ -258,6 +259,118 @@ describe("parseExtractionJson", () => {
       "concerns[1].concernKey must be a non-empty string",
     );
   });
+
+  // ── Key whitelist enforcement: profileUpdates ──
+
+  test("moves unrecognized profileUpdates keys into medical_facts", () => {
+    const json = JSON.stringify({
+      episodeSummary: "摘要",
+      profileUpdates: {
+        baby_snapshot: { weight: "4.8kg" },
+        medications: [{ name: "铁剂" }],
+        sleepPosition: "斜坡枕",
+      },
+    });
+    const result = parseExtractionJson(json);
+    expect(result.profileUpdates).toBeDefined();
+    // Recognized key preserved
+    expect(result.profileUpdates!.baby_snapshot).toEqual({ weight: "4.8kg" });
+    // Unrecognized keys moved to medical_facts
+    expect(result.profileUpdates!.medications).toBeUndefined();
+    expect(result.profileUpdates!.sleepPosition).toBeUndefined();
+    const facts = result.profileUpdates!.medical_facts as Array<{ fact: string }>;
+    expect(facts).toHaveLength(2);
+    expect(facts.some((f) => f.fact.includes("medications"))).toBe(true);
+    expect(facts.some((f) => f.fact.includes("斜坡枕"))).toBe(true);
+  });
+
+  test("preserves all four allowed profileUpdates keys", () => {
+    const json = JSON.stringify({
+      episodeSummary: "摘要",
+      profileUpdates: {
+        medical_facts: [{ fact: "过敏" }],
+        baby_snapshot: { weight: "4kg" },
+        feeding_profile: { type: "母乳" },
+        next_actions: [{ fact: "复查" }],
+      },
+    });
+    const result = parseExtractionJson(json);
+    expect(Object.keys(result.profileUpdates!).toSorted()).toEqual([
+      "baby_snapshot",
+      "feeding_profile",
+      "medical_facts",
+      "next_actions",
+    ]);
+  });
+
+  test("merges spillover into existing medical_facts without duplication", () => {
+    const json = JSON.stringify({
+      episodeSummary: "摘要",
+      profileUpdates: {
+        medical_facts: [{ fact: "牛奶蛋白过敏" }],
+        environment: { temp: "25°C" },
+      },
+    });
+    const result = parseExtractionJson(json);
+    const facts = result.profileUpdates!.medical_facts as Array<{ fact: string }>;
+    expect(facts).toHaveLength(2);
+    expect(facts[0].fact).toBe("牛奶蛋白过敏");
+    expect(facts[1].fact).toContain("environment");
+  });
+
+  test("returns undefined profileUpdates when all keys are unrecognized and empty after normalization", () => {
+    // Edge case: only unrecognized keys → they get moved to medical_facts, so profileUpdates is not empty
+    const json = JSON.stringify({
+      episodeSummary: "摘要",
+      profileUpdates: { randomField: "value" },
+    });
+    const result = parseExtractionJson(json);
+    expect(result.profileUpdates).toBeDefined();
+    expect(result.profileUpdates!.medical_facts).toBeDefined();
+  });
+});
+
+// ── Tests: normalizeProfileUpdates ──────────────────────────────────
+
+describe("normalizeProfileUpdates", () => {
+  test("passes through allowed keys unchanged", () => {
+    const input = {
+      medical_facts: [{ fact: "test" }],
+      baby_snapshot: { weight: "4kg" },
+    };
+    const result = normalizeProfileUpdates(input);
+    expect(result).toEqual(input);
+  });
+
+  test("moves string value to medical_facts", () => {
+    const result = normalizeProfileUpdates({ sleepPosition: "斜坡枕" });
+    expect(result.sleepPosition).toBeUndefined();
+    expect(result.medical_facts).toEqual([{ fact: "sleepPosition: 斜坡枕" }]);
+  });
+
+  test("moves object value to medical_facts as JSON", () => {
+    const result = normalizeProfileUpdates({ environment: { temp: "25°C" } });
+    expect(result.environment).toBeUndefined();
+    const facts = result.medical_facts as Array<{ fact: string }>;
+    expect(facts).toHaveLength(1);
+    expect(facts[0].fact).toContain("environment");
+    expect(facts[0].fact).toContain("25°C");
+  });
+
+  test("appends to existing medical_facts", () => {
+    const result = normalizeProfileUpdates({
+      medical_facts: [{ fact: "existing" }],
+      badKey: "value",
+    });
+    const facts = result.medical_facts as Array<{ fact: string }>;
+    expect(facts).toHaveLength(2);
+    expect(facts[0].fact).toBe("existing");
+    expect(facts[1].fact).toBe("badKey: value");
+  });
+
+  test("returns empty object when input is empty", () => {
+    expect(normalizeProfileUpdates({})).toEqual({});
+  });
 });
 
 // ── Tests: extractFromRawMessages ───────────────────────────────────
@@ -278,7 +391,7 @@ describe("extractFromRawMessages", () => {
     });
 
     expect(result.episodeSummary).toBe(sampleExtraction.episodeSummary);
-    expect(result.profileUpdates).toEqual({ baby_weight_kg: 4.2 });
+    expect(result.profileUpdates).toEqual({ baby_snapshot: { weight_kg: 4.2 } });
     expect(vi.mocked(completeSimple)).toHaveBeenCalledOnce();
   });
 

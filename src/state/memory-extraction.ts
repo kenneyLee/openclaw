@@ -82,6 +82,12 @@ ${conversationLines}
 // ── JSON parsing & validation ───────────────────────────────────────
 
 const VALID_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
+const ALLOWED_PROFILE_KEYS = new Set([
+  "medical_facts",
+  "baby_snapshot",
+  "feeding_profile",
+  "next_actions",
+]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -108,6 +114,39 @@ function validateConcern(
   if (!c.evidenceText || typeof c.evidenceText !== "string") {
     throw new Error(`concerns[${index}].evidenceText must be a non-empty string`);
   }
+}
+
+/**
+ * Normalize profileUpdates: move unrecognized top-level keys into medical_facts
+ * so that assembleMemoryMarkdown can always render the data.
+ */
+export function normalizeProfileUpdates(raw: Record<string, unknown>): Record<string, unknown> {
+  const normalized: Record<string, unknown> = {};
+  const spillover: Array<{ fact: string }> = [];
+
+  for (const [key, value] of Object.entries(raw)) {
+    if (ALLOWED_PROFILE_KEYS.has(key)) {
+      normalized[key] = value;
+    } else {
+      // Unrecognized key → serialize into medical_facts as fallback
+      const desc =
+        typeof value === "string"
+          ? value
+          : typeof value === "object" && value !== null
+            ? JSON.stringify(value, null, 0)
+            : String(value);
+      spillover.push({ fact: `${key}: ${desc}` });
+    }
+  }
+
+  if (spillover.length > 0) {
+    const existing = Array.isArray(normalized.medical_facts)
+      ? (normalized.medical_facts as Array<{ fact: string }>)
+      : [];
+    normalized.medical_facts = [...existing, ...spillover];
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : {};
 }
 
 export function parseExtractionJson(text: string): ExtractionResult {
@@ -140,9 +179,15 @@ export function parseExtractionJson(text: string): ExtractionResult {
     }
   }
 
+  const profileRaw = isPlainObject(parsed.profileUpdates) ? parsed.profileUpdates : undefined;
+  const profileNormalized = profileRaw ? normalizeProfileUpdates(profileRaw) : undefined;
+
   return {
     episodeSummary: parsed.episodeSummary,
-    profileUpdates: isPlainObject(parsed.profileUpdates) ? parsed.profileUpdates : undefined,
+    profileUpdates:
+      profileNormalized && Object.keys(profileNormalized).length > 0
+        ? profileNormalized
+        : undefined,
     concerns: Array.isArray(parsed.concerns)
       ? (parsed.concerns as ExtractionResult["concerns"])
       : undefined,

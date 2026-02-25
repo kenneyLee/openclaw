@@ -112,6 +112,7 @@ export type CronJob = {
   agentId?: string;
   /** Origin session namespace for reminder delivery and wake routing. */
   sessionKey?: string;
+  tenantId?: string;
   name: string;
   description?: string;
   enabled: boolean;

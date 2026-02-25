@@ -57,6 +57,7 @@ const CronDeliveryStatusSchema = Type.Union([
 const CronCommonOptionalFields = {
   agentId: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
   sessionKey: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
+  tenantId: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
   description: Type.Optional(Type.String()),
   enabled: Type.Optional(Type.Boolean()),
   deleteAfterRun: Type.Optional(Type.Boolean()),
@@ -207,6 +208,7 @@ export const CronJobSchema = Type.Object(
     id: NonEmptyString,
     agentId: Type.Optional(NonEmptyString),
     sessionKey: Type.Optional(NonEmptyString),
+    tenantId: Type.Optional(NonEmptyString),
     name: NonEmptyString,
     description: Type.Optional(Type.String()),
     enabled: Type.Boolean(),

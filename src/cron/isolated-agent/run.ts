@@ -54,6 +54,7 @@ import {
   getHookType,
   isExternalHookSession,
 } from "../../security/external-content.js";
+import type { StateProvider } from "../../state/index.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
 import type { CronJob, CronRunOutcome, CronRunTelemetry } from "../types.js";
 import { resolveDeliveryTarget } from "./delivery-target.js";
@@ -160,6 +161,8 @@ export async function runCronIsolatedAgentTurn(params: {
   sessionKey: string;
   agentId?: string;
   lane?: string;
+  tenantId?: string;
+  stateProvider?: StateProvider;
 }): Promise<RunCronAgentTurnResult> {
   const abortSignal = params.abortSignal ?? params.signal;
   const isAborted = () => abortSignal?.aborted === true;
@@ -211,7 +214,7 @@ export async function runCronIsolatedAgentTurn(params: {
     mainKey: baseSessionKey,
   });
 
-  const workspaceDirRaw = resolveAgentWorkspaceDir(params.cfg, agentId);
+  const workspaceDirRaw = resolveAgentWorkspaceDir(params.cfg, agentId, params.tenantId);
   const agentDir = resolveAgentDir(params.cfg, agentId);
   const workspace = await ensureAgentWorkspace({
     dir: workspaceDirRaw,
@@ -507,6 +510,8 @@ export async function runCronIsolatedAgentTurn(params: {
           sessionId: cronSession.sessionEntry.sessionId,
           sessionKey: agentSessionKey,
           agentId,
+          tenantId: params.tenantId,
+          stateProvider: params.stateProvider,
           messageChannel,
           agentAccountId: resolvedDelivery.accountId,
           sessionFile,

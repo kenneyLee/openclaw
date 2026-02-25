@@ -377,6 +377,7 @@ export function createJob(state: CronServiceState, input: CronJobCreate): CronJo
     id,
     agentId: normalizeOptionalAgentId(input.agentId),
     sessionKey: normalizeOptionalSessionKey((input as { sessionKey?: unknown }).sessionKey),
+    tenantId: normalizeOptionalText(input.tenantId),
     name: normalizeRequiredName(input.name),
     description: normalizeOptionalText(input.description),
     enabled,
@@ -463,6 +464,9 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   }
   if ("sessionKey" in patch) {
     job.sessionKey = normalizeOptionalSessionKey((patch as { sessionKey?: unknown }).sessionKey);
+  }
+  if ("tenantId" in patch) {
+    job.tenantId = normalizeOptionalText((patch as { tenantId?: unknown }).tenantId);
   }
   assertSupportedJobSpec(job);
   assertDeliverySupport(job);

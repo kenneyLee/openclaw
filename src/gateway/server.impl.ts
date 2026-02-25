@@ -430,6 +430,7 @@ export async function startGatewayServer(
   let cronState = buildGatewayCronService({
     cfg: cfgAtStart,
     deps,
+    stateProvider,
     broadcast,
   });
   let { cron, storePath: cronStorePath } = cronState;
@@ -703,6 +704,7 @@ export async function startGatewayServer(
     : (() => {
         const { applyHotReload, requestGatewayRestart } = createGatewayReloadHandlers({
           deps,
+          stateProvider,
           broadcast,
           getState: () => ({
             hooksConfig,

@@ -16,6 +16,7 @@ import {
 } from "../infra/restart.js";
 import { setCommandLaneConcurrency, getTotalQueueSize } from "../process/command-queue.js";
 import { CommandLane } from "../process/lanes.js";
+import type { StateProvider } from "../state/index.js";
 import type { ChannelKind, GatewayReloadPlan } from "./config-reload.js";
 import { resolveHooksConfig } from "./hooks.js";
 import { startBrowserControlServerIfEnabled } from "./server-browser.js";
@@ -30,6 +31,7 @@ type GatewayHotReloadState = {
 
 export function createGatewayReloadHandlers(params: {
   deps: CliDeps;
+  stateProvider?: StateProvider;
   broadcast: (event: string, payload: unknown, opts?: { dropIfSlow?: boolean }) => void;
   getState: () => GatewayHotReloadState;
   setState: (state: GatewayHotReloadState) => void;
@@ -72,6 +74,7 @@ export function createGatewayReloadHandlers(params: {
       nextState.cronState = buildGatewayCronService({
         cfg: nextConfig,
         deps: params.deps,
+        stateProvider: params.stateProvider,
         broadcast: params.broadcast,
       });
       void nextState.cronState.cron

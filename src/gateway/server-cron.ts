@@ -21,6 +21,7 @@ import { enqueueSystemEvent } from "../infra/system-events.js";
 import { getChildLogger } from "../logging.js";
 import { normalizeAgentId, toAgentStoreSessionKey } from "../routing/session-key.js";
 import { defaultRuntime } from "../runtime.js";
+import type { StateProvider } from "../state/index.js";
 
 export type GatewayCronState = {
   cron: CronService;
@@ -68,6 +69,7 @@ function resolveCronWebhookTarget(params: {
 export function buildGatewayCronService(params: {
   cfg: ReturnType<typeof loadConfig>;
   deps: CliDeps;
+  stateProvider?: StateProvider;
   broadcast: (event: string, payload: unknown, opts?: { dropIfSlow?: boolean }) => void;
 }): GatewayCronState {
   const cronLogger = getChildLogger({ module: "cron" });
@@ -196,6 +198,8 @@ export function buildGatewayCronService(params: {
         agentId,
         sessionKey: `cron:${job.id}`,
         lane: "cron",
+        tenantId: job.tenantId,
+        stateProvider: params.stateProvider,
       });
     },
     log: getChildLogger({ module: "cron", storePath }),

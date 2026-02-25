@@ -390,3 +390,251 @@ describe("admin-entity-memory-http /ingest-raw", () => {
     expect(vi.mocked(readJsonBodyOrError)).not.toHaveBeenCalled();
   });
 });
+
+// ── Tests: per-message validation ───────────────────────────────────────
+
+describe("admin-entity-memory-http /ingest-raw message validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockIngest.mockResolvedValue({ episode: { id: 1 } });
+  });
+
+  test("returns 400 when message has invalid role", async () => {
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: [{ role: "doctor", content: "你好" }],
+    });
+    const { res, end } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+    expect(res.statusCode).toBe(400);
+    const body = parseResponseBody(end) as { error?: { message?: string } };
+    expect(body.error?.message).toContain("messages[0].role must be one of");
+  });
+
+  test("returns 400 when message content is empty string", async () => {
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: [{ role: "parent", content: "" }],
+    });
+    const { res, end } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+    expect(res.statusCode).toBe(400);
+    const body = parseResponseBody(end) as { error?: { message?: string } };
+    expect(body.error?.message).toContain("messages[0].content must be a non-empty string");
+  });
+
+  test("returns 400 when message content is not a string", async () => {
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: [{ role: "parent", content: 123 }],
+    });
+    const { res, end } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+    expect(res.statusCode).toBe(400);
+    const body = parseResponseBody(end) as { error?: { message?: string } };
+    expect(body.error?.message).toContain("messages[0].content must be a non-empty string");
+  });
+
+  test("returns 400 when timestamp is not valid ISO 8601", async () => {
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: [{ role: "parent", content: "你好", timestamp: "not-a-date" }],
+    });
+    const { res, end } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+    expect(res.statusCode).toBe(400);
+    const body = parseResponseBody(end) as { error?: { message?: string } };
+    expect(body.error?.message).toContain("messages[0].timestamp is not a valid ISO 8601 date");
+  });
+
+  test("allows messages without timestamp", async () => {
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: [{ role: "parent", content: "你好" }],
+    });
+    vi.mocked(extractFromRawMessages).mockResolvedValue({
+      episodeSummary: "摘要",
+    });
+    const { res } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+    expect(res.statusCode).toBe(200);
+  });
+
+  test("returns 400 when messages exceed count limit (200)", async () => {
+    const tooMany = Array.from({ length: 201 }, (_, i) => ({
+      role: "parent",
+      content: `消息${i}`,
+    }));
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: tooMany,
+    });
+    const { res, end } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+    expect(res.statusCode).toBe(400);
+    const body = parseResponseBody(end) as { error?: { message?: string } };
+    expect(body.error?.message).toContain("exceeds maximum count");
+  });
+
+  test("returns 400 when total content exceeds character limit (50000)", async () => {
+    const longContent = "x".repeat(51_000);
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: [{ role: "parent", content: longContent }],
+    });
+    const { res, end } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+    expect(res.statusCode).toBe(400);
+    const body = parseResponseBody(end) as { error?: { message?: string } };
+    expect(body.error?.message).toContain("total message content exceeds");
+  });
+
+  test("reports correct index for invalid message in middle of array", async () => {
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: [
+        { role: "parent", content: "OK" },
+        { role: "invalid_role", content: "bad" },
+      ],
+    });
+    const { res, end } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+    expect(res.statusCode).toBe(400);
+    const body = parseResponseBody(end) as { error?: { message?: string } };
+    expect(body.error?.message).toContain("messages[1].role");
+  });
+});
+
+// ── Tests: post-extraction ingest fallback ──────────────────────────────
+
+describe("admin-entity-memory-http /ingest-raw ingest fallback", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetProfile.mockResolvedValue({
+      tenantId: "t1",
+      profileData: { baby_name: "宝宝" },
+      version: 1,
+      lastInteractionAt: null,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    });
+  });
+
+  test("falls back to raw content when ingest with extracted data fails", async () => {
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: sampleMessages,
+      source: "botflow",
+    });
+    vi.mocked(extractFromRawMessages).mockResolvedValue(sampleExtraction);
+
+    // First ingest call (with extraction) fails, second (fallback) succeeds
+    mockIngest
+      .mockRejectedValueOnce(new Error("DB constraint violation"))
+      .mockResolvedValueOnce({ episode: { id: 99 } });
+
+    const { res, end } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+
+    expect(res.statusCode).toBe(200);
+    const body = parseResponseBody(end) as {
+      ok?: boolean;
+      extractionInvalid?: boolean;
+      extractionError?: string;
+      extraction?: typeof sampleExtraction;
+      results?: unknown;
+    };
+    expect(body.ok).toBe(true);
+    expect(body.extractionInvalid).toBe(true);
+    expect(body.extractionError).toContain("DB constraint violation");
+    // Extraction is still returned for debugging
+    expect(body.extraction?.episodeSummary).toBe(sampleExtraction.episodeSummary);
+
+    // Verify fallback ingest was called with raw content
+    expect(mockIngest).toHaveBeenCalledTimes(2);
+    const fallbackCall = mockIngest.mock.calls[1];
+    expect(fallbackCall[1].episode.metadata).toEqual(
+      expect.objectContaining({ extractionInvalid: true }),
+    );
+  });
+
+  test("LLM returns invalid schema → extractFromRawMessages throws → fallback saves raw data", async () => {
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: sampleMessages,
+    });
+    // Simulate extractFromRawMessages throwing due to schema validation failure
+    vi.mocked(extractFromRawMessages).mockRejectedValue(
+      new Error("concerns[0].severity must be one of: low, medium, high, critical"),
+    );
+    mockIngest.mockResolvedValue({ episode: { id: 50 } });
+
+    const { res, end } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+
+    expect(res.statusCode).toBe(200);
+    const body = parseResponseBody(end) as {
+      ok?: boolean;
+      extractionFailed?: boolean;
+      extractionError?: string;
+    };
+    expect(body.ok).toBe(true);
+    expect(body.extractionFailed).toBe(true);
+    expect(body.extractionError).toContain("severity");
+
+    // Raw content was saved
+    expect(mockIngest).toHaveBeenCalledOnce();
+    const ingestCall = mockIngest.mock.calls[0];
+    expect(ingestCall[1].episode.content).toContain("[parent] 宝宝今天体重到4.2kg了");
+  });
+});

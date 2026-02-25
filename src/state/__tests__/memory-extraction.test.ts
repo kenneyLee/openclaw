@@ -172,6 +172,92 @@ describe("parseExtractionJson", () => {
     expect(result.concerns).toHaveLength(1);
     expect(result.concerns![0].concernKey).toBe("jaundice");
   });
+
+  // ── Schema validation: profileUpdates ──
+
+  test("throws when profileUpdates is an array", () => {
+    const json = JSON.stringify({ episodeSummary: "摘要", profileUpdates: [1, 2] });
+    expect(() => parseExtractionJson(json)).toThrow("profileUpdates must be a plain object");
+  });
+
+  test("throws when profileUpdates is a string", () => {
+    const json = JSON.stringify({ episodeSummary: "摘要", profileUpdates: "bad" });
+    expect(() => parseExtractionJson(json)).toThrow("profileUpdates must be a plain object");
+  });
+
+  test("allows null profileUpdates (treated as absent)", () => {
+    const json = JSON.stringify({ episodeSummary: "摘要", profileUpdates: null });
+    const result = parseExtractionJson(json);
+    expect(result.profileUpdates).toBeUndefined();
+  });
+
+  // ── Schema validation: concerns ──
+
+  test("throws when concerns is not an array", () => {
+    const json = JSON.stringify({ episodeSummary: "摘要", concerns: "bad" });
+    expect(() => parseExtractionJson(json)).toThrow("concerns must be an array");
+  });
+
+  test("throws when concern is missing concernKey", () => {
+    const json = JSON.stringify({
+      episodeSummary: "摘要",
+      concerns: [{ displayName: "黄疸", severity: "high", evidenceText: "值15" }],
+    });
+    expect(() => parseExtractionJson(json)).toThrow(
+      "concerns[0].concernKey must be a non-empty string",
+    );
+  });
+
+  test("throws when concern has empty displayName", () => {
+    const json = JSON.stringify({
+      episodeSummary: "摘要",
+      concerns: [
+        { concernKey: "jaundice", displayName: "", severity: "high", evidenceText: "值15" },
+      ],
+    });
+    expect(() => parseExtractionJson(json)).toThrow(
+      "concerns[0].displayName must be a non-empty string",
+    );
+  });
+
+  test("throws when concern has invalid severity", () => {
+    const json = JSON.stringify({
+      episodeSummary: "摘要",
+      concerns: [
+        { concernKey: "jaundice", displayName: "黄疸", severity: "urgent", evidenceText: "值15" },
+      ],
+    });
+    expect(() => parseExtractionJson(json)).toThrow("concerns[0].severity must be one of");
+    expect(() => parseExtractionJson(json)).toThrow('"urgent"');
+  });
+
+  test("throws when concern has missing evidenceText", () => {
+    const json = JSON.stringify({
+      episodeSummary: "摘要",
+      concerns: [{ concernKey: "jaundice", displayName: "黄疸", severity: "high" }],
+    });
+    expect(() => parseExtractionJson(json)).toThrow(
+      "concerns[0].evidenceText must be a non-empty string",
+    );
+  });
+
+  test("throws when concern item is not an object", () => {
+    const json = JSON.stringify({ episodeSummary: "摘要", concerns: ["bad"] });
+    expect(() => parseExtractionJson(json)).toThrow("concerns[0] is not an object");
+  });
+
+  test("reports correct index for invalid concern in middle of array", () => {
+    const json = JSON.stringify({
+      episodeSummary: "摘要",
+      concerns: [
+        { concernKey: "ok", displayName: "OK", severity: "low", evidenceText: "fine" },
+        { concernKey: "", displayName: "坏的", severity: "low", evidenceText: "bad" },
+      ],
+    });
+    expect(() => parseExtractionJson(json)).toThrow(
+      "concerns[1].concernKey must be a non-empty string",
+    );
+  });
 });
 
 // ── Tests: extractFromRawMessages ───────────────────────────────────

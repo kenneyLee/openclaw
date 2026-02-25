@@ -213,6 +213,79 @@ export async function handleAdminEntityMemoryHttpRequest(
         return true;
       }
 
+      // ── Per-message validation & size limits ──
+      const MAX_MESSAGES = 200;
+      const MAX_TOTAL_CHARS = 50_000;
+      const VALID_ROLES = new Set(["parent", "caregiver", "system"]);
+
+      if (body.messages.length > MAX_MESSAGES) {
+        sendJson(res, 400, {
+          error: {
+            message: `messages exceeds maximum count (${MAX_MESSAGES})`,
+            type: "invalid_request_error",
+          },
+        });
+        return true;
+      }
+
+      let totalChars = 0;
+      for (let i = 0; i < body.messages.length; i++) {
+        const msg = body.messages[i];
+        if (!msg || typeof msg !== "object") {
+          sendJson(res, 400, {
+            error: { message: `messages[${i}] is not an object`, type: "invalid_request_error" },
+          });
+          return true;
+        }
+        if (!VALID_ROLES.has(msg.role)) {
+          sendJson(res, 400, {
+            error: {
+              message: `messages[${i}].role must be one of: parent, caregiver, system`,
+              type: "invalid_request_error",
+            },
+          });
+          return true;
+        }
+        if (!msg.content || typeof msg.content !== "string") {
+          sendJson(res, 400, {
+            error: {
+              message: `messages[${i}].content must be a non-empty string`,
+              type: "invalid_request_error",
+            },
+          });
+          return true;
+        }
+        if (msg.timestamp !== undefined) {
+          if (typeof msg.timestamp !== "string" || Number.isNaN(Date.parse(msg.timestamp))) {
+            sendJson(res, 400, {
+              error: {
+                message: `messages[${i}].timestamp is not a valid ISO 8601 date`,
+                type: "invalid_request_error",
+              },
+            });
+            return true;
+          }
+        }
+        totalChars += msg.content.length;
+      }
+
+      if (totalChars > MAX_TOTAL_CHARS) {
+        sendJson(res, 400, {
+          error: {
+            message: `total message content exceeds ${MAX_TOTAL_CHARS} characters (got ${totalChars})`,
+            type: "invalid_request_error",
+          },
+        });
+        return true;
+      }
+
+      // ── Helper: build fallback content from raw messages ──
+      const buildFallbackContent = () =>
+        body.messages
+          .map((m) => `[${m.role}] ${m.content}`)
+          .join("\n")
+          .slice(0, 5000);
+
       // Load existing profile for deduplication
       let existingProfile: Record<string, unknown> | null = null;
       try {
@@ -233,16 +306,12 @@ export async function handleAdminEntityMemoryHttpRequest(
           existingProfile,
         });
       } catch (extractErr) {
-        // Fallback: concatenate raw messages as episode content
-        const fallbackContent = body.messages
-          .map((m) => `[${m.role}] ${m.content}`)
-          .join("\n")
-          .slice(0, 5000);
+        // Fallback: LLM call failed or returned invalid schema
         const fallbackResult = await em.ingest(body.tenantId, {
           episode: {
             episodeType: "conversation",
             channel: body.channel,
-            content: fallbackContent,
+            content: buildFallbackContent(),
             metadata: { source: body.source ?? "ingest-raw", extractionFailed: true },
           },
           render: body.render !== false,
@@ -256,28 +325,57 @@ export async function handleAdminEntityMemoryHttpRequest(
         return true;
       }
 
-      // Use extraction results with existing ingest pipeline
-      const ingestOpts: Parameters<typeof em.ingest>[1] = {
-        episode: {
-          episodeType: "conversation",
-          channel: body.channel,
-          content: extraction.episodeSummary,
-          metadata: { source: body.source ?? "ingest-raw", rawMessageCount: body.messages.length },
-        },
-        render: body.render !== false,
-      };
-      if (extraction.profileUpdates && Object.keys(extraction.profileUpdates).length > 0) {
-        ingestOpts.profileUpdates = extraction.profileUpdates;
-      }
-      if (extraction.concerns && extraction.concerns.length > 0) {
-        ingestOpts.concerns = extraction.concerns.map((c) => ({
-          ...c,
-          source: body.source ?? "ingest-raw",
-        }));
-      }
+      // Use extraction results with existing ingest pipeline.
+      // Wrap in try/catch: if ingest fails due to extracted data issues,
+      // fall back to raw content so data is never lost.
+      try {
+        const ingestOpts: Parameters<typeof em.ingest>[1] = {
+          episode: {
+            episodeType: "conversation",
+            channel: body.channel,
+            content: extraction.episodeSummary,
+            metadata: {
+              source: body.source ?? "ingest-raw",
+              rawMessageCount: body.messages.length,
+            },
+          },
+          render: body.render !== false,
+        };
+        if (extraction.profileUpdates && Object.keys(extraction.profileUpdates).length > 0) {
+          ingestOpts.profileUpdates = extraction.profileUpdates;
+        }
+        if (extraction.concerns && extraction.concerns.length > 0) {
+          ingestOpts.concerns = extraction.concerns.map((c) => ({
+            ...c,
+            source: body.source ?? "ingest-raw",
+          }));
+        }
 
-      const results = await em.ingest(body.tenantId, ingestOpts);
-      sendJson(res, 200, { ok: true, extraction, results });
+        const results = await em.ingest(body.tenantId, ingestOpts);
+        sendJson(res, 200, { ok: true, extraction, results });
+      } catch (ingestErr) {
+        // Extraction succeeded but ingest failed — fall back to raw content
+        const fallbackResult = await em.ingest(body.tenantId, {
+          episode: {
+            episodeType: "conversation",
+            channel: body.channel,
+            content: buildFallbackContent(),
+            metadata: {
+              source: body.source ?? "ingest-raw",
+              extractionInvalid: true,
+              ingestError: String(ingestErr),
+            },
+          },
+          render: body.render !== false,
+        });
+        sendJson(res, 200, {
+          ok: true,
+          extractionInvalid: true,
+          extractionError: String(ingestErr),
+          extraction,
+          results: fallbackResult,
+        });
+      }
     } catch (err) {
       sendJson(res, 500, {
         error: { message: `Ingest-raw failed: ${String(err)}`, type: "api_error" },

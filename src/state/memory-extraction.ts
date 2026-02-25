@@ -70,7 +70,36 @@ ${conversationLines}
 仅输出 JSON，不要其他文字。`;
 }
 
-// ── JSON parsing helper ─────────────────────────────────────────────
+// ── JSON parsing & validation ───────────────────────────────────────
+
+const VALID_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validateConcern(
+  c: unknown,
+  index: number,
+): asserts c is ExtractionResult["concerns"] extends Array<infer T> ? T : never {
+  if (!isPlainObject(c)) {
+    throw new Error(`concerns[${index}] is not an object`);
+  }
+  if (!c.concernKey || typeof c.concernKey !== "string") {
+    throw new Error(`concerns[${index}].concernKey must be a non-empty string`);
+  }
+  if (!c.displayName || typeof c.displayName !== "string") {
+    throw new Error(`concerns[${index}].displayName must be a non-empty string`);
+  }
+  if (!VALID_SEVERITIES.has(c.severity as string)) {
+    throw new Error(
+      `concerns[${index}].severity must be one of: low, medium, high, critical (got "${String(c.severity)}")`,
+    );
+  }
+  if (!c.evidenceText || typeof c.evidenceText !== "string") {
+    throw new Error(`concerns[${index}].evidenceText must be a non-empty string`);
+  }
+}
 
 export function parseExtractionJson(text: string): ExtractionResult {
   // Strip markdown code fences if present
@@ -78,12 +107,37 @@ export function parseExtractionJson(text: string): ExtractionResult {
     .replace(/^```(?:json)?\n?/m, "")
     .replace(/\n?```$/m, "")
     .trim();
-  const parsed = JSON.parse(stripped) as ExtractionResult;
+  const parsed = JSON.parse(stripped) as Record<string, unknown>;
 
+  // episodeSummary — required, non-empty string
   if (!parsed.episodeSummary || typeof parsed.episodeSummary !== "string") {
     throw new Error("LLM extraction did not return episodeSummary");
   }
-  return parsed;
+
+  // profileUpdates — optional, must be plain object if present
+  if (parsed.profileUpdates !== undefined && parsed.profileUpdates !== null) {
+    if (!isPlainObject(parsed.profileUpdates)) {
+      throw new Error("profileUpdates must be a plain object (not array or primitive)");
+    }
+  }
+
+  // concerns — optional, must be array of valid concern objects if present
+  if (parsed.concerns !== undefined && parsed.concerns !== null) {
+    if (!Array.isArray(parsed.concerns)) {
+      throw new Error("concerns must be an array");
+    }
+    for (let i = 0; i < parsed.concerns.length; i++) {
+      validateConcern(parsed.concerns[i], i);
+    }
+  }
+
+  return {
+    episodeSummary: parsed.episodeSummary,
+    profileUpdates: isPlainObject(parsed.profileUpdates) ? parsed.profileUpdates : undefined,
+    concerns: Array.isArray(parsed.concerns)
+      ? (parsed.concerns as ExtractionResult["concerns"])
+      : undefined,
+  };
 }
 
 // ── Main extraction function ────────────────────────────────────────

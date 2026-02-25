@@ -545,9 +545,9 @@ describe("admin-entity-memory-http /ingest-raw message validation", () => {
   });
 });
 
-// ── Tests: post-extraction ingest fallback ──────────────────────────────
+// ── Tests: error propagation boundaries ─────────────────────────────────
 
-describe("admin-entity-memory-http /ingest-raw ingest fallback", () => {
+describe("admin-entity-memory-http /ingest-raw error boundaries", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetProfile.mockResolvedValue({
@@ -560,7 +560,7 @@ describe("admin-entity-memory-http /ingest-raw ingest fallback", () => {
     });
   });
 
-  test("falls back to raw content when ingest with extracted data fails", async () => {
+  test("DB/system error on post-extraction ingest returns 500, not fallback", async () => {
     vi.mocked(readJsonBodyOrError).mockResolvedValue({
       tenantId: "t1",
       channel: "easemob",
@@ -568,11 +568,7 @@ describe("admin-entity-memory-http /ingest-raw ingest fallback", () => {
       source: "botflow",
     });
     vi.mocked(extractFromRawMessages).mockResolvedValue(sampleExtraction);
-
-    // First ingest call (with extraction) fails, second (fallback) succeeds
-    mockIngest
-      .mockRejectedValueOnce(new Error("DB constraint violation"))
-      .mockResolvedValueOnce({ episode: { id: 99 } });
+    mockIngest.mockRejectedValue(new Error("MySQL server has gone away"));
 
     const { res, end } = makeMockRes();
     await handleAdminEntityMemoryHttpRequest(
@@ -581,26 +577,12 @@ describe("admin-entity-memory-http /ingest-raw ingest fallback", () => {
       baseOpts,
     );
 
-    expect(res.statusCode).toBe(200);
-    const body = parseResponseBody(end) as {
-      ok?: boolean;
-      extractionInvalid?: boolean;
-      extractionError?: string;
-      extraction?: typeof sampleExtraction;
-      results?: unknown;
-    };
-    expect(body.ok).toBe(true);
-    expect(body.extractionInvalid).toBe(true);
-    expect(body.extractionError).toContain("DB constraint violation");
-    // Extraction is still returned for debugging
-    expect(body.extraction?.episodeSummary).toBe(sampleExtraction.episodeSummary);
-
-    // Verify fallback ingest was called with raw content
-    expect(mockIngest).toHaveBeenCalledTimes(2);
-    const fallbackCall = mockIngest.mock.calls[1];
-    expect(fallbackCall[1].episode.metadata).toEqual(
-      expect.objectContaining({ extractionInvalid: true }),
-    );
+    // Must return 500, NOT 200 with extractionInvalid
+    expect(res.statusCode).toBe(500);
+    const body = parseResponseBody(end) as { error?: { message?: string } };
+    expect(body.error?.message).toContain("MySQL server has gone away");
+    // ingest should only be called once — no fallback attempt
+    expect(mockIngest).toHaveBeenCalledOnce();
   });
 
   test("LLM returns invalid schema → extractFromRawMessages throws → fallback saves raw data", async () => {

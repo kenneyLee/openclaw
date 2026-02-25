@@ -326,56 +326,32 @@ export async function handleAdminEntityMemoryHttpRequest(
       }
 
       // Use extraction results with existing ingest pipeline.
-      // Wrap in try/catch: if ingest fails due to extracted data issues,
-      // fall back to raw content so data is never lost.
-      try {
-        const ingestOpts: Parameters<typeof em.ingest>[1] = {
-          episode: {
-            episodeType: "conversation",
-            channel: body.channel,
-            content: extraction.episodeSummary,
-            metadata: {
-              source: body.source ?? "ingest-raw",
-              rawMessageCount: body.messages.length,
-            },
-          },
-          render: body.render !== false,
-        };
-        if (extraction.profileUpdates && Object.keys(extraction.profileUpdates).length > 0) {
-          ingestOpts.profileUpdates = extraction.profileUpdates;
-        }
-        if (extraction.concerns && extraction.concerns.length > 0) {
-          ingestOpts.concerns = extraction.concerns.map((c) => ({
-            ...c,
+      // Schema validation in extractFromRawMessages already ensures data quality.
+      // If ingest fails here, it's a DB/system error — let it propagate to 500.
+      const ingestOpts: Parameters<typeof em.ingest>[1] = {
+        episode: {
+          episodeType: "conversation",
+          channel: body.channel,
+          content: extraction.episodeSummary,
+          metadata: {
             source: body.source ?? "ingest-raw",
-          }));
-        }
-
-        const results = await em.ingest(body.tenantId, ingestOpts);
-        sendJson(res, 200, { ok: true, extraction, results });
-      } catch (ingestErr) {
-        // Extraction succeeded but ingest failed — fall back to raw content
-        const fallbackResult = await em.ingest(body.tenantId, {
-          episode: {
-            episodeType: "conversation",
-            channel: body.channel,
-            content: buildFallbackContent(),
-            metadata: {
-              source: body.source ?? "ingest-raw",
-              extractionInvalid: true,
-              ingestError: String(ingestErr),
-            },
+            rawMessageCount: body.messages.length,
           },
-          render: body.render !== false,
-        });
-        sendJson(res, 200, {
-          ok: true,
-          extractionInvalid: true,
-          extractionError: String(ingestErr),
-          extraction,
-          results: fallbackResult,
-        });
+        },
+        render: body.render !== false,
+      };
+      if (extraction.profileUpdates && Object.keys(extraction.profileUpdates).length > 0) {
+        ingestOpts.profileUpdates = extraction.profileUpdates;
       }
+      if (extraction.concerns && extraction.concerns.length > 0) {
+        ingestOpts.concerns = extraction.concerns.map((c) => ({
+          ...c,
+          source: body.source ?? "ingest-raw",
+        }));
+      }
+
+      const results = await em.ingest(body.tenantId, ingestOpts);
+      sendJson(res, 200, { ok: true, extraction, results });
     } catch (err) {
       sendJson(res, 500, {
         error: { message: `Ingest-raw failed: ${String(err)}`, type: "api_error" },

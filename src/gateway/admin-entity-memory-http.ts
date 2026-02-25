@@ -4,6 +4,7 @@
  * Endpoints for the Entity Memory platform primitive:
  *
  *   POST   /v1/admin/memory/ingest            — batch write: profile + episode + concerns + re-render
+ *   POST   /v1/admin/memory/ingest-raw       — raw message extraction + ingest
  *   GET    /v1/admin/memory/context            — rendered MEMORY.md text
  *   GET    /v1/admin/memory/profile            — raw profile
  *   GET    /v1/admin/memory/concerns           — active concerns
@@ -19,6 +20,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Pool, RowDataPacket } from "mysql2/promise";
 import type { DatabaseEntityMemoryProvider } from "../state/db-entity-memory-provider.js";
 import type { DatabaseStateProvider } from "../state/db-state-provider.js";
+import {
+  extractFromRawMessages,
+  type ExtractionResult,
+  type RawMessage,
+} from "../state/memory-extraction.js";
 import type { StateProvider } from "../state/types.js";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
@@ -82,6 +88,7 @@ async function authorize(
 // ── Route patterns ──────────────────────────────────────────────────
 
 const MEMORY_INGEST_PATH = "/v1/admin/memory/ingest";
+const MEMORY_INGEST_RAW_PATH = "/v1/admin/memory/ingest-raw";
 const MEMORY_CONTEXT_PATH = "/v1/admin/memory/context";
 const MEMORY_PROFILE_PATH = "/v1/admin/memory/profile";
 const MEMORY_CONCERNS_PATH = "/v1/admin/memory/concerns";
@@ -160,6 +167,120 @@ export async function handleAdminEntityMemoryHttpRequest(
     } catch (err) {
       sendJson(res, 500, {
         error: { message: `Ingest failed: ${String(err)}`, type: "api_error" },
+      });
+    }
+    return true;
+  }
+
+  // ── POST /v1/admin/memory/ingest-raw ────────────────────────────
+
+  if (pathname === MEMORY_INGEST_RAW_PATH && req.method === "POST") {
+    if (!(await authorize(req, res, opts))) {
+      return true;
+    }
+    const em = getEntityMemory(opts.stateProvider);
+    if (!em) {
+      sendNotImplemented(res);
+      return true;
+    }
+    try {
+      const body = (await readJsonBodyOrError(req, res, MAX_BODY_BYTES)) as {
+        tenantId: string;
+        channel: string;
+        messages: RawMessage[];
+        source?: string;
+        render?: boolean;
+      };
+      if (!body) {
+        return true;
+      }
+      if (!body.tenantId) {
+        sendJson(res, 400, {
+          error: { message: "tenantId is required", type: "invalid_request_error" },
+        });
+        return true;
+      }
+      if (!body.channel) {
+        sendJson(res, 400, {
+          error: { message: "channel is required", type: "invalid_request_error" },
+        });
+        return true;
+      }
+      if (!Array.isArray(body.messages) || body.messages.length === 0) {
+        sendJson(res, 400, {
+          error: { message: "messages must be a non-empty array", type: "invalid_request_error" },
+        });
+        return true;
+      }
+
+      // Load existing profile for deduplication
+      let existingProfile: Record<string, unknown> | null = null;
+      try {
+        const profile = await em.getProfile(body.tenantId);
+        if (profile) {
+          existingProfile = profile.profileData;
+        }
+      } catch {
+        /* ignore — extraction can proceed without profile */
+      }
+
+      // LLM extraction
+      let extraction: ExtractionResult;
+      try {
+        extraction = await extractFromRawMessages({
+          messages: body.messages,
+          channel: body.channel,
+          existingProfile,
+        });
+      } catch (extractErr) {
+        // Fallback: concatenate raw messages as episode content
+        const fallbackContent = body.messages
+          .map((m) => `[${m.role}] ${m.content}`)
+          .join("\n")
+          .slice(0, 5000);
+        const fallbackResult = await em.ingest(body.tenantId, {
+          episode: {
+            episodeType: "conversation",
+            channel: body.channel,
+            content: fallbackContent,
+            metadata: { source: body.source ?? "ingest-raw", extractionFailed: true },
+          },
+          render: body.render !== false,
+        });
+        sendJson(res, 200, {
+          ok: true,
+          extractionFailed: true,
+          extractionError: String(extractErr),
+          results: fallbackResult,
+        });
+        return true;
+      }
+
+      // Use extraction results with existing ingest pipeline
+      const ingestOpts: Parameters<typeof em.ingest>[1] = {
+        episode: {
+          episodeType: "conversation",
+          channel: body.channel,
+          content: extraction.episodeSummary,
+          metadata: { source: body.source ?? "ingest-raw", rawMessageCount: body.messages.length },
+        },
+        render: body.render !== false,
+      };
+      if (extraction.profileUpdates && Object.keys(extraction.profileUpdates).length > 0) {
+        ingestOpts.profileUpdates = extraction.profileUpdates;
+      }
+      if (extraction.concerns && extraction.concerns.length > 0) {
+        ingestOpts.concerns = extraction.concerns.map((c) => ({
+          ...c,
+          source: body.source ?? "ingest-raw",
+        }));
+      }
+
+      const results = await em.ingest(body.tenantId, ingestOpts);
+      sendJson(res, 200, { ok: true, extraction, results });
+    } catch (err) {
+      sendJson(res, 500, {
+        error: { message: `Ingest-raw failed: ${String(err)}`, type: "api_error" },
       });
     }
     return true;

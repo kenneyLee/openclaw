@@ -521,8 +521,9 @@ describe("admin-entity-memory-http /ingest-raw message validation", () => {
     expect(body.error?.message).toContain("exceeds maximum count");
   });
 
-  test("returns 400 when total content exceeds character limit (50000)", async () => {
-    const longContent = "x".repeat(51_000);
+  test("returns 400 when total content exceeds byte limit (60000)", async () => {
+    // ASCII 'x' is 1 byte each, so 61,000 chars = 61,000 bytes > 60,000
+    const longContent = "x".repeat(61_000);
     vi.mocked(readJsonBodyOrError).mockResolvedValue({
       tenantId: "t1",
       channel: "easemob",
@@ -537,6 +538,26 @@ describe("admin-entity-memory-http /ingest-raw message validation", () => {
     expect(res.statusCode).toBe(400);
     const body = parseResponseBody(end) as { error?: { message?: string } };
     expect(body.error?.message).toContain("total message content exceeds");
+  });
+
+  test("returns 400 when CJK content exceeds byte limit (3 bytes per char)", async () => {
+    // Each CJK char is 3 bytes in UTF-8. 20,001 chars × 3 = 60,003 bytes > 60,000
+    const cjkContent = "宝".repeat(20_001);
+    vi.mocked(readJsonBodyOrError).mockResolvedValue({
+      tenantId: "t1",
+      channel: "easemob",
+      messages: [{ role: "parent", content: cjkContent }],
+    });
+    const { res, end } = makeMockRes();
+    await handleAdminEntityMemoryHttpRequest(
+      makeMockReq("/v1/admin/memory/ingest-raw"),
+      res,
+      baseOpts,
+    );
+    expect(res.statusCode).toBe(400);
+    const body = parseResponseBody(end) as { error?: { message?: string } };
+    expect(body.error?.message).toContain("total message content exceeds");
+    expect(body.error?.message).toContain("bytes");
   });
 
   test("reports correct index for invalid message in middle of array", async () => {

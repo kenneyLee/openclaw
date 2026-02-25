@@ -215,7 +215,9 @@ export async function handleAdminEntityMemoryHttpRequest(
 
       // ── Per-message validation & size limits ──
       const MAX_MESSAGES = 200;
-      const MAX_TOTAL_CHARS = 50_000;
+      // MySQL TEXT column is 65,535 bytes. In utf8mb4, CJK chars are 3 bytes,
+      // emoji are 4 bytes. Use byte-based limit to match actual DB constraint.
+      const MAX_CONTENT_BYTES = 60_000; // leave headroom for [role] prefixes in fallback
       const VALID_ROLES = new Set(["parent", "caregiver", "system"]);
       // ISO 8601: 2026-02-25, 2026-02-25T10:30:00, 2026-02-25T10:30:00Z, 2026-02-25T10:30:00+08:00
       const ISO_8601_RE =
@@ -231,7 +233,7 @@ export async function handleAdminEntityMemoryHttpRequest(
         return true;
       }
 
-      let totalChars = 0;
+      let totalBytes = 0;
       for (let i = 0; i < body.messages.length; i++) {
         const msg = body.messages[i];
         if (!msg || typeof msg !== "object") {
@@ -273,13 +275,13 @@ export async function handleAdminEntityMemoryHttpRequest(
             return true;
           }
         }
-        totalChars += msg.content.length;
+        totalBytes += Buffer.byteLength(msg.content, "utf8");
       }
 
-      if (totalChars > MAX_TOTAL_CHARS) {
+      if (totalBytes > MAX_CONTENT_BYTES) {
         sendJson(res, 400, {
           error: {
-            message: `total message content exceeds ${MAX_TOTAL_CHARS} characters (got ${totalChars})`,
+            message: `total message content exceeds ${MAX_CONTENT_BYTES} bytes (got ${totalBytes})`,
             type: "invalid_request_error",
           },
         });
@@ -287,10 +289,19 @@ export async function handleAdminEntityMemoryHttpRequest(
       }
 
       // ── Helper: build fallback content from raw messages ──
-      // Input is already bounded by MAX_TOTAL_CHARS validation above,
-      // so no truncation needed — fallback preserves full original content.
-      const buildFallbackContent = () =>
-        body.messages.map((m) => `[${m.role}] ${m.content}`).join("\n");
+      // Input is bounded by MAX_CONTENT_BYTES validation above. The [role]
+      // prefixes and newlines add overhead, so apply byte-safe truncation
+      // as a safety net to stay within MySQL TEXT (65,535 bytes).
+      const buildFallbackContent = () => {
+        const raw = body.messages.map((m) => `[${m.role}] ${m.content}`).join("\n");
+        const rawBytes = Buffer.byteLength(raw, "utf8");
+        if (rawBytes <= 65_000) {
+          return raw;
+        }
+        // Byte-safe truncation: encode, slice, decode (may drop last partial char)
+        const buf = Buffer.from(raw, "utf8").subarray(0, 65_000);
+        return buf.toString("utf8") + "\n[…truncated]";
+      };
 
       // Load existing profile for deduplication
       let existingProfile: Record<string, unknown> | null = null;

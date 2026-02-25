@@ -293,9 +293,19 @@ export async function handleAdminEntityMemoryHttpRequest(
       const days = daysParam ? Number(daysParam) : 14;
       const limit = limitParam ? Number(limitParam) : 100;
 
-      if (Number.isNaN(days) || days < 1) {
+      if (!Number.isInteger(days) || days < 1) {
         sendJson(res, 400, {
           error: { message: "days must be a positive integer", type: "invalid_request_error" },
+        });
+        return true;
+      }
+
+      if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
+        sendJson(res, 400, {
+          error: {
+            message: "limit must be a positive integer (max 500)",
+            type: "invalid_request_error",
+          },
         });
         return true;
       }

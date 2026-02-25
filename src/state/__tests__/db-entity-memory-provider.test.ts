@@ -55,6 +55,26 @@ function makeEpisodeRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makeConcernRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    tenant_id: "t1",
+    concern_key: "jaundice",
+    display_name: "黄疸偏高",
+    severity: "high",
+    status: "active",
+    mention_count: 2,
+    evidence: JSON.stringify([{ text: "值15", source: "checkin", date: "2026-01-01" }]),
+    first_seen_at: "2026-01-01T00:00:00Z",
+    last_seen_at: "2026-01-15T00:00:00Z",
+    resolved_at: null,
+    followup_due: null,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-15T00:00:00Z",
+    ...overrides,
+  };
+}
+
 // ── Test Group 1: ingest() normal path ────────────────────────────────
 
 describe("DatabaseEntityMemoryProvider — ingest() normal path", () => {
@@ -660,5 +680,117 @@ describe("assembleMemoryMarkdown", () => {
     const md = assembleMemoryMarkdown(null, [], [episode])!;
     expect(md).toContain("A".repeat(50));
     expect(md).not.toContain("...");
+  });
+});
+
+// ── Test Group 6: getAllConcerns ──────────────────────────────────────
+
+describe("DatabaseEntityMemoryProvider — getAllConcerns", () => {
+  test("returns all statuses including resolved", async () => {
+    const { pool, executeFn } = createMockPool();
+    const provider = new DatabaseEntityMemoryProvider(pool);
+
+    const activeRow = makeConcernRow({ id: 1, status: "active" });
+    const resolvedRow = makeConcernRow({
+      id: 2,
+      concern_key: "weight",
+      display_name: "体重增长慢",
+      severity: "low",
+      status: "resolved",
+      resolved_at: "2026-02-01T00:00:00Z",
+    });
+    executeFn.mockResolvedValueOnce([[activeRow, resolvedRow], []]);
+
+    const result = await provider.getAllConcerns("t1");
+
+    expect(result).toHaveLength(2);
+    expect(result[0].status).toBe("active");
+    expect(result[1].status).toBe("resolved");
+  });
+
+  test("orders by status then severity", async () => {
+    const { pool, executeFn } = createMockPool();
+    const provider = new DatabaseEntityMemoryProvider(pool);
+
+    executeFn.mockResolvedValueOnce([[], []]);
+
+    await provider.getAllConcerns("t1");
+
+    const sql = executeFn.mock.calls[0][0] as string;
+    expect(sql).toContain("FIELD(status, 'active','improving','escalated','resolved')");
+    expect(sql).toContain("FIELD(severity, 'critical','high','medium','low')");
+  });
+
+  test("does not filter by status (no WHERE status IN clause)", async () => {
+    const { pool, executeFn } = createMockPool();
+    const provider = new DatabaseEntityMemoryProvider(pool);
+
+    executeFn.mockResolvedValueOnce([[], []]);
+
+    await provider.getAllConcerns("t1");
+
+    const sql = executeFn.mock.calls[0][0] as string;
+    expect(sql).not.toContain("status IN");
+  });
+});
+
+// ── Test Group 7: getEpisodesSince ───────────────────────────────────
+
+describe("DatabaseEntityMemoryProvider — getEpisodesSince", () => {
+  test("filters by date", async () => {
+    const { pool, executeFn } = createMockPool();
+    const provider = new DatabaseEntityMemoryProvider(pool);
+
+    const row = makeEpisodeRow();
+    executeFn.mockResolvedValueOnce([[row], []]);
+
+    const since = new Date("2026-02-10T00:00:00Z");
+    const result = await provider.getEpisodesSince("t1", since);
+
+    expect(result).toHaveLength(1);
+    const sql = executeFn.mock.calls[0][0] as string;
+    expect(sql).toContain("created_at >= ?");
+    const params = executeFn.mock.calls[0][1] as string[];
+    expect(params[1]).toBe("2026-02-10 00:00:00");
+  });
+
+  test("respects limit option", async () => {
+    const { pool, executeFn } = createMockPool();
+    const provider = new DatabaseEntityMemoryProvider(pool);
+
+    executeFn.mockResolvedValueOnce([[], []]);
+
+    const since = new Date("2026-02-01T00:00:00Z");
+    await provider.getEpisodesSince("t1", since, { limit: 50 });
+
+    const sql = executeFn.mock.calls[0][0] as string;
+    expect(sql).toContain("LIMIT ?");
+    const params = executeFn.mock.calls[0][1] as string[];
+    expect(params[2]).toBe("50");
+  });
+
+  test("defaults limit to 100", async () => {
+    const { pool, executeFn } = createMockPool();
+    const provider = new DatabaseEntityMemoryProvider(pool);
+
+    executeFn.mockResolvedValueOnce([[], []]);
+
+    const since = new Date("2026-02-01T00:00:00Z");
+    await provider.getEpisodesSince("t1", since);
+
+    const params = executeFn.mock.calls[0][1] as string[];
+    expect(params[2]).toBe("100");
+  });
+
+  test("returns empty for future date", async () => {
+    const { pool, executeFn } = createMockPool();
+    const provider = new DatabaseEntityMemoryProvider(pool);
+
+    executeFn.mockResolvedValueOnce([[], []]);
+
+    const future = new Date("2030-01-01T00:00:00Z");
+    const result = await provider.getEpisodesSince("t1", future);
+
+    expect(result).toEqual([]);
   });
 });

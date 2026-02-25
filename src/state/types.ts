@@ -158,6 +158,11 @@ export interface EntityMemoryProvider {
     tenantId: string,
     opts?: { limit?: number; episodeType?: string },
   ): Promise<MemoryEpisode[]>;
+  getEpisodesSince(
+    tenantId: string,
+    since: Date,
+    opts?: { limit?: number },
+  ): Promise<MemoryEpisode[]>;
 
   upsertConcern(
     tenantId: string,
@@ -170,6 +175,7 @@ export interface EntityMemoryProvider {
     },
   ): Promise<{ id: number; mentionCount: number }>;
   getActiveConcerns(tenantId: string): Promise<MemoryConcern[]>;
+  getAllConcerns(tenantId: string): Promise<MemoryConcern[]>;
   updateConcernStatus(
     tenantId: string,
     concernKey: string,

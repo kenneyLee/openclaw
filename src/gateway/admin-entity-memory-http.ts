@@ -7,6 +7,8 @@
  *   GET    /v1/admin/memory/context            — rendered MEMORY.md text
  *   GET    /v1/admin/memory/profile            — raw profile
  *   GET    /v1/admin/memory/concerns           — active concerns
+ *   GET    /v1/admin/memory/concerns/all       — all concerns (including resolved)
+ *   GET    /v1/admin/memory/episodes           — episodes by time range
  *   PUT    /v1/admin/memory/concerns/:key      — update concern status
  *   POST   /v1/admin/memory/render             — force re-render MEMORY.md
  *
@@ -83,6 +85,8 @@ const MEMORY_INGEST_PATH = "/v1/admin/memory/ingest";
 const MEMORY_CONTEXT_PATH = "/v1/admin/memory/context";
 const MEMORY_PROFILE_PATH = "/v1/admin/memory/profile";
 const MEMORY_CONCERNS_PATH = "/v1/admin/memory/concerns";
+const MEMORY_CONCERNS_ALL_PATH = "/v1/admin/memory/concerns/all";
+const MEMORY_EPISODES_PATH = "/v1/admin/memory/episodes";
 const MEMORY_CONCERN_DETAIL_RE = /^\/v1\/admin\/memory\/concerns\/([^/]+)$/;
 const MEMORY_RENDER_PATH = "/v1/admin/memory/render";
 
@@ -229,6 +233,81 @@ export async function handleAdminEntityMemoryHttpRequest(
     } catch (err) {
       sendJson(res, 500, {
         error: { message: `Failed to read profile: ${String(err)}`, type: "api_error" },
+      });
+    }
+    return true;
+  }
+
+  // ── GET /v1/admin/memory/concerns/all?tenant_id=X ──────────────
+
+  if (pathname === MEMORY_CONCERNS_ALL_PATH && req.method === "GET") {
+    if (!(await authorize(req, res, opts))) {
+      return true;
+    }
+    const em = getEntityMemory(opts.stateProvider);
+    if (!em) {
+      sendNotImplemented(res);
+      return true;
+    }
+    try {
+      const tenantId = url.searchParams.get("tenant_id");
+      if (!tenantId) {
+        sendJson(res, 400, {
+          error: { message: "tenant_id query param is required", type: "invalid_request_error" },
+        });
+        return true;
+      }
+
+      const concerns = await em.getAllConcerns(tenantId);
+      sendJson(res, 200, { tenantId, concerns });
+    } catch (err) {
+      sendJson(res, 500, {
+        error: { message: `Failed to read concerns: ${String(err)}`, type: "api_error" },
+      });
+    }
+    return true;
+  }
+
+  // ── GET /v1/admin/memory/episodes?tenant_id=X&days=14&limit=100 ─
+
+  if (pathname === MEMORY_EPISODES_PATH && req.method === "GET") {
+    if (!(await authorize(req, res, opts))) {
+      return true;
+    }
+    const em = getEntityMemory(opts.stateProvider);
+    if (!em) {
+      sendNotImplemented(res);
+      return true;
+    }
+    try {
+      const tenantId = url.searchParams.get("tenant_id");
+      if (!tenantId) {
+        sendJson(res, 400, {
+          error: { message: "tenant_id query param is required", type: "invalid_request_error" },
+        });
+        return true;
+      }
+
+      const daysParam = url.searchParams.get("days");
+      const limitParam = url.searchParams.get("limit");
+      const days = daysParam ? Number(daysParam) : 14;
+      const limit = limitParam ? Number(limitParam) : 100;
+
+      if (Number.isNaN(days) || days < 1) {
+        sendJson(res, 400, {
+          error: { message: "days must be a positive integer", type: "invalid_request_error" },
+        });
+        return true;
+      }
+
+      const since = new Date();
+      since.setDate(since.getDate() - days);
+
+      const episodes = await em.getEpisodesSince(tenantId, since, { limit });
+      sendJson(res, 200, { tenantId, episodes });
+    } catch (err) {
+      sendJson(res, 500, {
+        error: { message: `Failed to read episodes: ${String(err)}`, type: "api_error" },
       });
     }
     return true;

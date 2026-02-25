@@ -355,6 +355,23 @@ export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
     return rows.map(rowToEpisode);
   }
 
+  async getEpisodesSince(
+    tenantId: string,
+    since: Date,
+    opts?: { limit?: number },
+  ): Promise<MemoryEpisode[]> {
+    const limit = opts?.limit ?? 100;
+    const sinceStr = since.toISOString().slice(0, 19).replace("T", " ");
+    const [rows] = await this.pool.execute<EpisodeRow[]>(
+      `SELECT id, tenant_id, episode_type, channel, content, metadata, is_superseded, created_at
+       FROM oc_memory_episodes
+       WHERE tenant_id = ? AND is_superseded = 0 AND created_at >= ?
+       ORDER BY created_at DESC LIMIT ?`,
+      [tenantId, sinceStr, String(limit)],
+    );
+    return rows.map(rowToEpisode);
+  }
+
   // ── Concerns ────────────────────────────────────────────────────
 
   async upsertConcern(
@@ -425,6 +442,21 @@ export class DatabaseEntityMemoryProvider implements EntityMemoryProvider {
        FROM oc_memory_concerns
        WHERE tenant_id = ? AND status IN ('active', 'improving', 'escalated')
        ORDER BY FIELD(severity, 'critical','high','medium','low'), last_seen_at DESC`,
+      [tenantId],
+    );
+    return rows.map(rowToConcern);
+  }
+
+  async getAllConcerns(tenantId: string): Promise<MemoryConcern[]> {
+    const [rows] = await this.pool.execute<ConcernRow[]>(
+      `SELECT id, tenant_id, concern_key, display_name, severity, status,
+              mention_count, evidence, first_seen_at, last_seen_at,
+              resolved_at, followup_due, created_at, updated_at
+       FROM oc_memory_concerns
+       WHERE tenant_id = ?
+       ORDER BY FIELD(status, 'active','improving','escalated','resolved'),
+                FIELD(severity, 'critical','high','medium','low'),
+                last_seen_at DESC`,
       [tenantId],
     );
     return rows.map(rowToConcern);

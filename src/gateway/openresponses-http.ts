@@ -916,22 +916,32 @@ export async function handleOpenResponsesHttpRequest(
         return;
       }
 
-      finalUsage = finalUsage ?? createEmptyUsage();
-      const errorResponse = createResponseResource({
-        id: responseId,
-        model,
-        status: "failed",
-        output: [],
-        error: { code: "api_error", message: "internal error" },
-        usage: finalUsage,
-      });
+      // If text was already streamed to the client, the response content is
+      // complete from the user's perspective.  Post-run failures (e.g. session
+      // persistence) should not downgrade the response to "failed".
+      if (sawAssistantDelta) {
+        logWarn(
+          `openresponses: post-stream error after content was delivered, completing gracefully`,
+        );
+        requestFinalize("completed", accumulatedText);
+      } else {
+        finalUsage = finalUsage ?? createEmptyUsage();
+        const errorResponse = createResponseResource({
+          id: responseId,
+          model,
+          status: "failed",
+          output: [],
+          error: { code: "api_error", message: "internal error" },
+          usage: finalUsage,
+        });
 
-      writeSseEvent(res, { type: "response.failed", response: errorResponse });
-      emitAgentEvent({
-        runId: responseId,
-        stream: "lifecycle",
-        data: { phase: "error" },
-      });
+        writeSseEvent(res, { type: "response.failed", response: errorResponse });
+        emitAgentEvent({
+          runId: responseId,
+          stream: "lifecycle",
+          data: { phase: "error" },
+        });
+      }
     } finally {
       if (!closed) {
         // Emit lifecycle end to trigger completion
